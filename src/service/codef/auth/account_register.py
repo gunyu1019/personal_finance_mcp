@@ -1,5 +1,7 @@
 from typing import Literal, Optional
+
 from ..base_model import CodefBaseModel
+from ..encryption import get_encrypt
 
 
 class AccountRegister(CodefBaseModel):
@@ -63,14 +65,16 @@ class AccountRegister(CodefBaseModel):
             client_type: Literal['P', 'B', 'A'],
             account_id: str,
             password: str,
+            public_key_pem: str,
             **kwargs  # Additional Field
     ):
+        encrypted_password = get_encrypt(password, public_key_pem)
         return cls(
             business_type=business_type,
             organization=organization,
             client_type=client_type,
             login_type='1',
             id=account_id,
-            password=password,
+            password=encrypted_password,
             **kwargs
         )

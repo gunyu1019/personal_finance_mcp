@@ -1,10 +1,10 @@
-from typing import Literal
+from typing import Optional, Literal
 from ..base_model import CodefBaseModel
 
 
 class Account(CodefBaseModel):
-    code: str  # 결과코드
-    message: str  # 메시지
+    code: Optional[str] = None  # 결과코드
+    message: Optional[str] = None  # 메시지
     country_code: Literal['KR']  # 국가코드 (한국: KR)
     client_type: Literal['P', 'B', 'A']  # 고객 구분 (개인: P, 기업/법인: B, 통합: A)
     organization: str  # 기관코드
