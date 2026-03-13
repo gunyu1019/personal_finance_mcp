@@ -1,6 +1,6 @@
 import asyncio
 
-from ahttp_client import BodyJson, request
+from ahttp_client import BodyJson, Header, request
 from ahttp_client.extension import pydantic_response_model, pydantic_request_model
 from typing import Annotated, Optional, Literal
 
@@ -26,6 +26,7 @@ class BankHttp(CodefBaseHttp):
             connected_id: Annotated[str, BodyJson.to_camel()],
             organization: Annotated[str, BodyJson.to_camel()],
             birth_date: Annotated[Optional[str], BodyJson.to_camel()] = None,
+            authorization: Annotated[Optional[str], Header.to_camel()] = None,
     ) -> CodefResult[BankRegistrationResult]:
         pass
 
@@ -39,6 +40,7 @@ class BankHttp(CodefBaseHttp):
             birth_date: Annotated[Optional[str], BodyJson.to_camel()] = None,
             withdraw_account_no: Annotated[Optional[str], BodyJson.to_camel()] = None,
             withdraw_account_password: Annotated[Optional[str], BodyJson.to_camel()] = None,
+            authorization: Annotated[Optional[str], Header.to_camel()] = None,
     ) -> CodefResult[BankAccountResult]:
         pass
 
@@ -56,5 +58,6 @@ class BankHttp(CodefBaseHttp):
             inquiry_type: Annotated[Optional[Literal['0', '1']], BodyJson.to_camel()] = None,
             account_password: Annotated[Optional[str], BodyJson.to_camel()] = None,
             birth_date: Annotated[Optional[str], BodyJson.to_camel()] = None,
+            authorization: Annotated[Optional[str], Header.to_camel()] = None,
     ) -> CodefResult[BankTransaction]:
         pass

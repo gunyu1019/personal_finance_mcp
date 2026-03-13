@@ -1,6 +1,6 @@
 import asyncio
 
-from ahttp_client import BodyJson, request
+from ahttp_client import BodyJson, Header, request
 from ahttp_client.extension import pydantic_response_model, pydantic_request_model
 from typing import Annotated, Optional, Literal
 
@@ -33,6 +33,7 @@ class CardHttp(CodefBaseHttp):
             card_no: Annotated[Optional[str], BodyJson.to_camel()] = None,
             card_password: Annotated[Optional[str], BodyJson.to_camel()] = None,
             card_valid_period: Annotated[Optional[str], BodyJson.to_camel()] = None,
+            authorization: Annotated[Optional[str], Header.to_camel()] = None,
     ) -> CodefResult[CardRegistrationResult]:
         pass
 
@@ -47,6 +48,7 @@ class CardHttp(CodefBaseHttp):
             user_id: Annotated[Optional[str], BodyJson.to_camel()] = None,
             card_no: Annotated[Optional[str], BodyJson.to_camel()] = None,
             card_password: Annotated[Optional[str], BodyJson.to_camel()] = None,
+            authorization: Annotated[Optional[str], Header.to_camel()] = None,
     ) -> CodefResult[CardAccount]:
         pass
 
@@ -67,5 +69,6 @@ class CardHttp(CodefBaseHttp):
             card_no: Annotated[Optional[str], BodyJson.to_camel()] = None,
             card_password: Annotated[Optional[str], BodyJson.to_camel()] = None,
             member_store_info_type: Annotated[Literal['0', '1', '2', '3'], BodyJson.to_camel()] = '0',
+            authorization: Annotated[Optional[str], Header.to_camel()] = None,
     ) -> CodefResult[list[CardApproval]]:
         pass

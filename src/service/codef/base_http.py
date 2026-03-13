@@ -45,6 +45,9 @@ class CodefBaseHttp(Session):
         self._access_token = AccessToken.model_validate(raw_data)
         return self._access_token
 
+    def update_access_token(self, access_token: AccessToken):
+        self._access_token = access_token
+
     async def before_request(self, request: RequestCore, path: str) -> tuple[RequestCore, str]:
         if self._access_token is None or self._access_token.is_expired:
             await self.fetch_access_token()
