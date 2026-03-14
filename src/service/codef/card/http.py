@@ -45,11 +45,11 @@ class CardHttp(CodefBaseHttp):
             connected_id: Annotated[str, BodyJson.to_camel()],
             organization: Annotated[str, BodyJson.to_camel()],
             inquiry_type: Annotated[Literal['0', '1'], BodyJson.to_camel()] = '0',
-            user_id: Annotated[Optional[str], BodyJson.to_camel()] = None,
+            birth_date: Annotated[Optional[str], BodyJson.to_camel()] = None,
             card_no: Annotated[Optional[str], BodyJson.to_camel()] = None,
             card_password: Annotated[Optional[str], BodyJson.to_camel()] = None,
             authorization: Annotated[Optional[str], Header.to_camel()] = None,
-    ) -> CodefResult[CardAccount]:
+    ) -> CodefResult[list[CardAccount] | CardAccount]:
         pass
 
     @pydantic_request_model()
@@ -63,12 +63,12 @@ class CardHttp(CodefBaseHttp):
             end_date: Annotated[str, BodyJson.to_camel()],
             birth_date: Annotated[Optional[str], BodyJson.to_camel()] = None,
             order_by: Annotated[Optional[Literal['0', '1']], BodyJson.to_camel()] = "0",
-            inquiry_type: Annotated[Optional[Literal['0', '1']], BodyJson.to_camel()] = None,
+            inquiry_type: Annotated[Optional[Literal['0', '1']], BodyJson.to_camel()] = "0",
             card_name: Annotated[Optional[str], BodyJson.to_camel()] = None,
             duplicate_card_idx: Annotated[Optional[str], BodyJson.to_camel()] = None,
             card_no: Annotated[Optional[str], BodyJson.to_camel()] = None,
             card_password: Annotated[Optional[str], BodyJson.to_camel()] = None,
             member_store_info_type: Annotated[Literal['0', '1', '2', '3'], BodyJson.to_camel()] = '0',
             authorization: Annotated[Optional[str], Header.to_camel()] = None,
-    ) -> CodefResult[list[CardApproval]]:
+    ) -> CodefResult[CardApproval | list[CardApproval]]:
         pass

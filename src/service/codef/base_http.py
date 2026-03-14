@@ -63,4 +63,7 @@ class CodefBaseHttp(Session):
             decoded_text = urllib.parse.unquote_plus(text)
             serialization = json.loads(decoded_text)
             return serialization
+        elif response.content_type.startswith("application/json"):
+            serialization = await response.json()
+            return serialization
         return response

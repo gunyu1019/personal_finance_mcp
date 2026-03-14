@@ -265,17 +265,17 @@ class CodefClient:
             connected_id: str,
             organization: str,
             inquiry_type: Literal["0", "1"] = "0",
-            user_id: Optional[str] = None,
+            birth_date: Optional[str] = None,
             card_no: Optional[str] = None,
             card_password: Optional[str] = None,
             authorization: Optional[str] = None,
-    ) -> CodefResult[CardAccount]:
+    ) -> CodefResult[CardAccount | list[CardAccount]]:
         encrypted_card_password = self._encrypt_password(card_password)
         return await self._card_http.card_account_list(
             connected_id=connected_id,
             organization=organization,
             inquiry_type=inquiry_type,
-            user_id=user_id,
+            birth_date=birth_date,
             card_no=card_no,
             card_password=encrypted_card_password,
             authorization=authorization,
@@ -290,14 +290,14 @@ class CodefClient:
             end_date: str,
             birth_date: Optional[str] = None,
             order_by: Optional[str] = "0",
-            inquiry_type: Optional[Literal["0", "1"]] = None,
+            inquiry_type: Literal["0", "1"] = "0",
             card_name: Optional[str] = None,
             duplicate_card_idx: Optional[str] = None,
             card_no: Optional[str] = None,
             card_password: Optional[str] = None,
             member_store_info_type: Literal["0", "1", "2", "3"] = "0",
             authorization: Optional[str] = None,
-    ) -> CodefResult[list[CardApproval]]:
+    ) -> CodefResult[CardApproval | list[CardApproval]]:
         encrypted_card_password = self._encrypt_password(card_password)
         return await self._card_http.card_approval_list(
             organization=organization,

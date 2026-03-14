@@ -10,8 +10,8 @@ class BankRegistrationResult(CodefBaseModel):
 
 
 class BankAccountResult(CodefBaseModel):
-    res_deposit_trust: Optional[list[BankAccount]] = []
-    res_foreign_currency: Optional[list[BankAccount]] = []
-    res_fund: Optional[list[BankAccount]] = []
-    res_loan: Optional[list[BankAccount]] = []
-    res_insurance: Optional[list[BankAccount]] = []
+    res_deposit_trust: Optional[list[BankAccount] | BankAccount] = []
+    res_foreign_currency: Optional[list[BankAccount] | BankAccount] = []
+    res_fund: Optional[list[BankAccount] | BankAccount] = []
+    res_loan: Optional[list[BankAccount] | BankAccount] = []
+    res_insurance: Optional[list[BankAccount] | BankAccount] = []
