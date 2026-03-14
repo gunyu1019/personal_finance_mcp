@@ -1,6 +1,8 @@
 import aiohttp
 import asyncio
 import base64
+import urllib.parse
+import json
 
 from ahttp_client import Session, RequestCore
 from typing import Optional
@@ -54,3 +56,11 @@ class CodefBaseHttp(Session):
 
         request.headers["Authorization"] = f"Bearer {self._access_token.access_token}"
         return request, path
+
+    async def after_request(self, response: aiohttp.ClientResponse):
+        if response.content_type.startswith("text/plain"):
+            text = await response.text()
+            decoded_text = urllib.parse.unquote_plus(text)
+            serialization = json.loads(decoded_text)
+            return serialization
+        return response
