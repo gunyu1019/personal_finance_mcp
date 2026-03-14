@@ -12,5 +12,5 @@ class CodefResultInfo(CodefBaseModel):
 
 
 class CodefResult(CodefBaseModel, Generic[T]):
-    code: CodefResultInfo  # 결과코드
+    result: CodefResultInfo  # 결과코드
     data: T  # 결과 데이터
