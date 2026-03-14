@@ -20,7 +20,7 @@ class BankHttp(CodefBaseHttp):
 
     @pydantic_request_model()
     @pydantic_response_model()
-    @request("POST", PATH_BANK_REGISTRATION_STATUS)
+    @request("POST", PATH_BANK_REGISTRATION_STATUS, directly_response=True)
     async def bank_registration_status(
             self,
             connected_id: Annotated[str, BodyJson.to_camel()],
@@ -32,7 +32,7 @@ class BankHttp(CodefBaseHttp):
 
     @pydantic_request_model()
     @pydantic_response_model()
-    @request("POST", PATH_BANK_ACCOUNT_LIST)
+    @request("POST", PATH_BANK_ACCOUNT_LIST, directly_response=True)
     async def bank_account_list(
             self,
             organization: Annotated[str, BodyJson.to_camel()],
@@ -46,7 +46,7 @@ class BankHttp(CodefBaseHttp):
 
     @pydantic_request_model()
     @pydantic_response_model()
-    @request("POST", PATH_BANK_TRANSACTION_LIST)
+    @request("POST", PATH_BANK_TRANSACTION_LIST, directly_response=True)
     async def bank_transaction_list(
             self,
             organization: Annotated[str, BodyJson.to_camel()],
@@ -54,7 +54,7 @@ class BankHttp(CodefBaseHttp):
             account: Annotated[str, BodyJson.to_camel()],  # 숫자만 입력
             start_date: Annotated[str, BodyJson.to_camel()],
             end_date: Annotated[str, BodyJson.to_camel()],
-            order_by: Annotated[Optional[Literal['0', '1']], BodyJson.to_camel()] = None,
+            order_by: Annotated[Optional[Literal['0', '1']], BodyJson.to_camel()] = '0',
             inquiry_type: Annotated[Optional[Literal['0', '1']], BodyJson.to_camel()] = None,
             account_password: Annotated[Optional[str], BodyJson.to_camel()] = None,
             birth_date: Annotated[Optional[str], BodyJson.to_camel()] = None,

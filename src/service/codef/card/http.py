@@ -21,7 +21,7 @@ class CardHttp(CodefBaseHttp):
 
     @pydantic_request_model()
     @pydantic_response_model()
-    @request("POST", PATH_CARD_REGISTRATION_STATUS)
+    @request("POST", PATH_CARD_REGISTRATION_STATUS, directly_response=True)
     async def card_registration_status(
             self,
             connected_id: Annotated[str, BodyJson.to_camel()],
@@ -39,7 +39,7 @@ class CardHttp(CodefBaseHttp):
 
     @pydantic_request_model()
     @pydantic_response_model()
-    @request("POST", PATH_CARD_ACCOUNT_LIST)
+    @request("POST", PATH_CARD_ACCOUNT_LIST, directly_response=True)
     async def card_account_list(
             self,
             connected_id: Annotated[str, BodyJson.to_camel()],
@@ -54,7 +54,7 @@ class CardHttp(CodefBaseHttp):
 
     @pydantic_request_model()
     @pydantic_response_model()
-    @request("POST", PATH_CARD_APPROVAL_LIST)
+    @request("POST", PATH_CARD_APPROVAL_LIST, directly_response=True)
     async def card_approval_list(
             self,
             organization: Annotated[str, BodyJson.to_camel()],

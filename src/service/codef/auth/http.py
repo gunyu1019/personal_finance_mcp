@@ -1,14 +1,13 @@
 import asyncio
 
-from ahttp_client import BodyJson, request, Header
+from ahttp_client import BodyJson, request, Header, Body
 from ahttp_client.extension import pydantic_response_model, pydantic_request_model
 from typing import Annotated, Optional
 
 from ..base_http import CodefBaseHttp
 from ..result import CodefResult
 
-from .account import Account
-from .account_register import AccountRegister
+from .account_input import AccountList, AccountModifyList, AccountRegisterList
 from .account_result import AccountModifyResult, ConnectedIdListResult, AccountListResult
 from .property import *
 
@@ -20,49 +19,47 @@ class AuthHttp(CodefBaseHttp):
 
     @pydantic_request_model()
     @pydantic_response_model()
-    @request("POST", PATH_CREATE_ACCOUNT)
+    @request("POST", PATH_CREATE_ACCOUNT, directly_response=True)
     async def create_account(
             self,
-            account: Annotated[list[AccountRegister], BodyJson.custom_name("accountList")],
+            account: Annotated[AccountRegisterList, Body],
             authorization: Annotated[Optional[str], Header.to_camel()] = None
     ) -> CodefResult[AccountModifyResult]:
         pass
 
     @pydantic_request_model()
     @pydantic_response_model()
-    @request("POST", PATH_ADD_ACCOUNT)
+    @request("POST", PATH_ADD_ACCOUNT, directly_response=True)
     async def add_account(
             self,
-            connected_id: Annotated[str, BodyJson.to_camel()],
-            account: Annotated[list[AccountRegister], BodyJson.custom_name("accountList")],
+            account: Annotated[AccountModifyList, Body],
             authorization: Annotated[Optional[str], Header.to_camel()] = None
     ) -> CodefResult[AccountModifyResult]:
         pass
 
     @pydantic_request_model()
     @pydantic_response_model()
-    @request("POST", PATH_UPDATE_ACCOUNT)
+    @request("POST", PATH_UPDATE_ACCOUNT, directly_response=True)
     async def update_account(
             self,
-            connected_id: Annotated[str, BodyJson.to_camel()],
-            account: Annotated[list[AccountRegister], BodyJson.custom_name("accountList")],
+            account: Annotated[AccountModifyList, Body],
             authorization: Annotated[Optional[str], Header.to_camel()] = None
     ) -> CodefResult[AccountModifyResult]:
         pass
 
     @pydantic_request_model()
     @pydantic_response_model()
-    @request("POST", PATH_DELETE_ACCOUNT)
+    @request("POST", PATH_DELETE_ACCOUNT, directly_response=True)
     async def delete_account(
             self,
-            account: Annotated[list[Account], BodyJson.custom_name("accountList")],
+            account: Annotated[AccountList, Body],
             authorization: Annotated[Optional[str], Header.to_camel()] = None
     ) -> CodefResult[AccountModifyResult]:
         pass
 
     @pydantic_request_model()
     @pydantic_response_model()
-    @request("POST", PATH_GET_ACCOUNT_LIST)
+    @request("POST", PATH_GET_ACCOUNT_LIST, directly_response=True)
     async def get_account_list(
             self,
             connected_id: Annotated[str, BodyJson.to_camel()],
@@ -72,7 +69,7 @@ class AuthHttp(CodefBaseHttp):
 
     @pydantic_request_model()
     @pydantic_response_model()
-    @request("POST", PATH_GET_CID_LIST)
+    @request("POST", PATH_GET_CID_LIST, directly_response=True)
     async def get_cid_list(
             self,
             page_no: Annotated[int, BodyJson.to_camel()],
