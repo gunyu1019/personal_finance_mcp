@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from src.core.config import settings
+from src.model.base import Base
 
 
 # 비동기 엔진 생성
