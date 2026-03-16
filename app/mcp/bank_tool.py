@@ -20,6 +20,7 @@ from app.core.crypto import decrypt_sensitive_data
 from app.core.database import AsyncSessionFactory
 from app.model.bank_account import BankAccount
 from app.repository.bank_account_repository import BankAccountRepository
+from app.repository.system_repository import SystemRepository
 from app.schema.mcp_responses import (
     BankAccountListResponse,
     BankTransactionListResponse,
@@ -75,7 +76,10 @@ async def _fetch_real_bank_transactions(
 ) -> list[BankTransactionRecord]:
     """
     CODEF API를 호출하여 실제 은행 거래내역을 조회합니다.
-    암호화된 계좌번호를 복호화하여 원본 번호로 API를 호출합니다.
+
+    - DB의 codef_connected_id를 connected_id로 사용합니다.
+    - encrypted_account_no를 복호화한 원본 번호를 account 파라미터로 전달합니다.
+    - 복호화된 민감 정보는 API 호출 인자로만 사용되며 로그·반환값에 포함되지 않습니다.
     """
     if settings.CODEF_MODE == "live":
         base_url = API_DOMAIN
@@ -84,39 +88,51 @@ async def _fetch_real_bank_transactions(
     else:
         base_url = DEMO_DOMAIN
 
-    # 암호화된 계좌번호를 복호화하여 원본 번호 확보
+    # ── connected_id 조회 ───────────────────────────────────
+    system_repo = SystemRepository()
+    system_repo.set_factory(AsyncSessionFactory)
+    async with system_repo as repo:
+        connected_id = await repo.get_connected_id()
+
+    if not connected_id:
+        raise ValueError(
+            "Codef connected_id가 등록되어 있지 않습니다. "
+            "설정 페이지에서 기관 연결을 먼저 수행해 주세요."
+        )
+
+    # ── 계좌번호 복호화 (in-memory only) ─────────────────────
     if not account.encrypted_account_no:
         raise ValueError("암호화된 계좌번호가 없습니다. 데이터 동기화를 다시 수행해주세요.")
-    
+
     try:
         real_account_no = decrypt_sensitive_data(account.encrypted_account_no)
     except Exception as e:
-        logger.error("계좌번호 복호화 실패: %s", e)
-        raise ValueError("계좌번호 복호화에 실패했습니다.")
+        logger.error("계좌번호 복호화 실패 — bank_code=%s", company_code)
+        raise ValueError("계좌번호 복호화에 실패했습니다.") from e
 
     client = CodefClient(
         public_key_pem=settings.CODEF_PUBLIC_KEY,
         client_id=settings.CODEF_CLIENT_ID,
         client_secret=settings.CODEF_CLIENT_SECRET,
-        base_url=base_url
+        base_url=base_url,
     )
-    
+
     end_date = datetime.date.today()
     start_date = end_date - datetime.timedelta(days=30)
-    
+
     try:
         res = await client.bank_transaction_list(
             organization=company_code,
-            connected_id=account.hashed_account_no,
-            account=real_account_no,  # 복호화된 원본 계좌번호 사용
+            connected_id=connected_id,          # DB의 codef_connected_id 사용
+            account=real_account_no,            # 복호화된 원본 계좌번호
             start_date=start_date.strftime("%Y%m%d"),
-            end_date=end_date.strftime("%Y%m%d")
+            end_date=end_date.strftime("%Y%m%d"),
         )
         if res.result.code != "CF-00000":
-            logger.error("CODEF API Error: %s - %s", res.result.code, res.result.message)
+            logger.error("CODEF API 오류 — code=%s message=%s", res.result.code, res.result.message)
             raise ValueError(f"CODEF API Error: {res.result.message}")
-        
-        transactions = []
+
+        transactions: list[BankTransactionRecord] = []
         if res.data and res.data.res_tr_history_list:
             for item in res.data.res_tr_history_list:
                 transactions.append(BankTransactionRecord(
@@ -125,11 +141,11 @@ async def _fetch_real_bank_transactions(
                     withdrawal=item.res_account_out,
                     deposit=item.res_account_in,
                     balance=item.res_after_tran_balance,
-                    description=item.res_account_desc1 or ""
+                    description=item.res_account_desc1 or "",
                 ))
         return transactions
     except Exception as e:
-        logger.error("[_fetch_real_bank_transactions] Error: %s", e)
+        logger.error("[_fetch_real_bank_transactions] 조회 실패 — bank_code=%s", company_code)
         raise
     finally:
         await client.close()

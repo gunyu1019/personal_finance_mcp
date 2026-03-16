@@ -15,11 +15,12 @@ import datetime
 
 from sqlalchemy import select
 
-from app.core.config import settings, CARD_MAPPING
+from app.core.config import settings, CARD_MAPPING, CARD_PASSWORD_REQUIRED_CODES
 from app.core.crypto import decrypt_sensitive_data
 from app.core.database import AsyncSessionFactory
 from app.model.card_account import CardAccount
 from app.repository.card_account_repository import CardAccountRepository
+from app.repository.system_repository import SystemRepository
 from app.schema.mcp_responses import (
     CardAccountListResponse,
     CardTransactionListResponse,
@@ -75,7 +76,11 @@ async def _fetch_real_card_transactions(
 ) -> list[CardTransactionRecord]:
     """
     CODEF API를 호출하여 실제 카드 승인내역을 조회합니다.
-    암호화된 카드번호를 복호화하여 원본 번호로 API를 호출합니다.
+
+    - DB의 codef_connected_id를 connected_id로 사용합니다.
+    - encrypted_card_no를 복호화한 원본 번호를 card_no로 전달합니다.
+    - CARD_PASSWORD_REQUIRED_CODES 카드사는 encrypted_card_password도 복호화하여 전달합니다.
+    - 복호화된 민감 정보는 API 호출 인자로만 사용되며 로그·반환값에 포함되지 않습니다.
     """
     if settings.CODEF_MODE == "live":
         base_url = API_DOMAIN
@@ -84,41 +89,62 @@ async def _fetch_real_card_transactions(
     else:
         base_url = DEMO_DOMAIN
 
-    # 암호화된 카드번호를 복호화하여 원본 번호 확보
+    # ── connected_id 조회 ───────────────────────────────────
+    system_repo = SystemRepository()
+    system_repo.set_factory(AsyncSessionFactory)
+    async with system_repo as repo:
+        connected_id = await repo.get_connected_id()
+
+    if not connected_id:
+        raise ValueError(
+            "Codef connected_id가 등록되어 있지 않습니다. "
+            "설정 페이지에서 기관 연결을 먼저 수행해 주세요."
+        )
+
+    # ── 카드번호 복호화 (in-memory only) ─────────────────────
     if not card.encrypted_card_no:
         raise ValueError("암호화된 카드번호가 없습니다. 데이터 동기화를 다시 수행해주세요.")
-    
+
     try:
         real_card_no = decrypt_sensitive_data(card.encrypted_card_no)
     except Exception as e:
-        logger.error("카드번호 복호화 실패: %s", e)
-        raise ValueError("카드번호 복호화에 실패했습니다.")
+        logger.error("카드번호 복호화 실패 — card_code=%s", company_code)
+        raise ValueError("카드번호 복호화에 실패했습니다.") from e
+
+    # ── 비밀번호 필수 카드사: 저장된 카드 비밀번호 복호화 ────
+    real_card_password: str | None = None
+    if company_code in CARD_PASSWORD_REQUIRED_CODES and card.encrypted_card_password:
+        try:
+            real_card_password = decrypt_sensitive_data(card.encrypted_card_password)
+        except Exception as e:
+            logger.error("카드 비밀번호 복호화 실패 — card_code=%s", company_code)
+            raise ValueError("카드 비밀번호 복호화에 실패했습니다.") from e
 
     client = CodefClient(
         public_key_pem=settings.CODEF_PUBLIC_KEY,
         client_id=settings.CODEF_CLIENT_ID,
         client_secret=settings.CODEF_CLIENT_SECRET,
-        base_url=base_url
+        base_url=base_url,
     )
-    
+
     end_date = datetime.date.today()
     start_date = end_date - datetime.timedelta(days=30)
-    
+
     try:
         res = await client.card_approval_list(
             organization=company_code,
-            connected_id=card.hashed_card_no,
+            connected_id=connected_id,          # DB의 codef_connected_id 사용
             start_date=start_date.strftime("%Y%m%d"),
             end_date=end_date.strftime("%Y%m%d"),
-            card_no=real_card_no,  # 복호화된 원본 카드번호 사용
+            card_no=real_card_no,               # 복호화된 원본 카드번호
+            card_password=real_card_password,   # 복호화된 카드 비밀번호 (필수 카드사만 non-None)
         )
         if res.result.code != "CF-00000":
-            logger.error("CODEF API Error: %s - %s", res.result.code, res.result.message)
+            logger.error("CODEF API 오류 — code=%s message=%s", res.result.code, res.result.message)
             raise ValueError(f"CODEF API Error: {res.result.message}")
-        
-        transactions = []
+
+        transactions: list[CardTransactionRecord] = []
         if res.data:
-            # res.data can be a single object or list
             data_list = res.data if isinstance(res.data, list) else [res.data]
             for item in data_list:
                 transactions.append(CardTransactionRecord(
@@ -132,7 +158,7 @@ async def _fetch_real_card_transactions(
                 ))
         return transactions
     except Exception as e:
-        logger.error("[_fetch_real_card_transactions] Error: %s", e)
+        logger.error("[_fetch_real_card_transactions] 조회 실패 — card_code=%s", company_code)
         raise
     finally:
         await client.close()
