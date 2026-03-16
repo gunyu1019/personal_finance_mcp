@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<!--
+  src/template/base.html
+  공통 레이아웃 템플릿 (Tailwind CSS + JSEncrypt CDN 포함)
+-->
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}Personal Finance MCP{% endblock %} — Personal Finance MCP</title>
+  <meta name="description" content="Personal Finance MCP 에이전트 금융 정보 관리 대시보드" />
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50:  '#eef2ff',
+              100: '#e0e7ff',
+              500: '#6366f1',
+              600: '#4f46e5',
+              700: '#4338ca',
+              900: '#1e1b4b',
+            }
+          },
+          fontFamily: {
+            sans: ['Pretendard', 'Inter', 'ui-sans-serif', 'system-ui'],
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Google Fonts: Pretendard & Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+  <!-- JSEncrypt — 클라이언트 사이드 RSA 암호화 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jsencrypt/3.3.2/jsencrypt.min.js"></script>
+
+  <style>
+    body { font-family: 'Inter', ui-sans-serif, system-ui; }
+    /* 스크롤바 스타일 */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: #f1f5f9; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+    /* 토글 스위치 */
+    .toggle-checkbox:checked { right: 0; border-color: #4f46e5; background-color: #4f46e5; }
+    .toggle-checkbox:checked + .toggle-label { background-color: #c7d2fe; }
+    .toggle-checkbox { right: auto; }
+    /* SSE 진행바 애니메이션 */
+    @keyframes progress-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
+    .progress-pulse { animation: progress-pulse 1.5s cubic-bezier(0.4,0,0.6,1) infinite; }
+  </style>
+
+  {% block head %}{% endblock %}
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
+
+  <!-- ═══════════ 네비게이션 바 ═══════════ -->
+  <nav class="bg-gradient-to-r from-brand-900 to-brand-700 shadow-lg sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-14">
+        <!-- 로고 -->
+        <a href="/" class="flex items-center gap-2 text-white font-bold text-lg tracking-tight">
+          <svg class="w-6 h-6 text-indigo-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+          Personal Finance MCP
+        </a>
+
+        <!-- 네비게이션 링크 -->
+        <div class="flex items-center gap-1">
+          <a href="/"
+             class="px-3 py-1.5 rounded-md text-sm font-medium text-indigo-200 hover:text-white hover:bg-white/10 transition-all">
+            대시보드
+          </a>
+          <a href="/settings"
+             class="px-3 py-1.5 rounded-md text-sm font-medium text-indigo-200 hover:text-white hover:bg-white/10 transition-all">
+            설정
+          </a>
+          <button id="btn-logout"
+                  class="ml-2 px-3 py-1.5 rounded-md text-sm font-medium text-red-300 hover:text-red-100 hover:bg-white/10 transition-all">
+            로그아웃
+          </button>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ═══════════ 메인 콘텐츠 ═══════════ -->
+  <main class="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8">
+    {% block content %}{% endblock %}
+  </main>
+
+  <!-- ═══════════ 푸터 ═══════════ -->
+  <footer class="bg-white border-t border-slate-200 py-4">
+    <p class="text-center text-xs text-slate-400">
+      Copyright(©) 2026-present gunyu1019 All right reserved.
+    </p>
+  </footer>
+
+  <!-- ═══════════ 공통 JS ═══════════ -->
+  <script>
+    // 로그아웃: 백엔드 API 호출을 통해 쿠키 삭제 후 /login 이동
+    document.getElementById('btn-logout')?.addEventListener('click', async () => {
+      try {
+        await authFetch('/api/auth/logout', { method: 'POST' });
+      } catch (error) {
+        console.error('로그아웃 API 호출 중 오류 발생:', error);
+      } finally {
+        localStorage.removeItem('access_token');
+        window.location.href = '/login';
+      }
+    });
+
+    // 인증 토큰 헬퍼 (localStorage → Cookie 순서로 조회)
+    function getAuthToken() {
+      const ls = localStorage.getItem('access_token');
+      if (ls) return ls;
+      const match = document.cookie.match(/(?:^|;\s*)access_token=([^;]*)/);
+      return match ? decodeURIComponent(match[1]) : null;
+    }
+
+    // Fetch + Bearer 헬퍼
+    async function authFetch(url, options = {}) {
+      const token = getAuthToken();
+      const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      return fetch(url, { ...options, headers });
+    }
+  </script>
+
+  {% block scripts %}{% endblock %}
+</body>
+</html>

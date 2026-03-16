@@ -1,0 +1,294 @@
+{% extends "base.html" %}
+{# src/template/dashboard.html — 금융 대시보드 #}
+
+{% block title %}대시보드{% endblock %}
+
+{% block content %}
+<!-- 페이지 헤더 -->
+<div class="mb-8">
+  <div class="flex items-center justify-between">
+    <div>
+      <h1 class="text-2xl font-bold text-slate-900">나의 금융 대시보드</h1>
+      <p class="text-slate-500 mt-1 text-sm">
+        연동된 계좌와 카드를 관리하고 AI 에이전트 노출 여부를 제어하세요.
+      </p>
+    </div>
+    <a href="/settings"
+       class="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm font-medium
+              hover:bg-indigo-500 transition-colors shadow-sm shadow-indigo-500/20">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+      </svg>
+      기관 연결
+    </a>
+  </div>
+</div>
+
+<!-- 토스트 알림 -->
+<div id="toast" class="fixed top-4 right-4 z-50 px-4 py-3 rounded-xl shadow-xl text-sm font-medium text-white
+                        transition-all duration-300 translate-x-full opacity-0 pointer-events-none max-w-xs">
+</div>
+
+<!-- 통계 카드 -->
+<div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+  <div class="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
+    <p class="text-xs font-medium text-slate-400 uppercase tracking-wide">연결된 은행 계좌</p>
+    <p class="text-3xl font-bold text-slate-900 mt-1">{{ bank_accounts|length }}</p>
+  </div>
+  <div class="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
+    <p class="text-xs font-medium text-slate-400 uppercase tracking-wide">연결된 카드</p>
+    <p class="text-3xl font-bold text-slate-900 mt-1">{{ card_accounts|length }}</p>
+  </div>
+  <div class="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm">
+    <p class="text-xs font-medium text-slate-400 uppercase tracking-wide">MCP 활성 항목</p>
+    <p class="text-3xl font-bold text-indigo-600 mt-1" id="stat-active">...</p>
+  </div>
+</div>
+
+<!-- ═══ 은행 계좌 섹션 ═══ -->
+<section class="mb-8">
+  <h2 class="text-lg font-semibold text-slate-700 mb-4 flex items-center gap-2">
+    <svg class="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+        d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18
+           7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3"/>
+    </svg>
+    은행 계좌
+  </h2>
+
+  {% if bank_accounts %}
+  <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+    <table class="w-full text-sm">
+      <thead class="bg-slate-50 border-b border-slate-100">
+        <tr>
+          <th class="text-left px-6 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">금융사 / 계좌명</th>
+          <th class="text-left px-6 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">계좌번호</th>
+          <th class="text-center px-6 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">MCP 노출</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-50">
+        {% for acc in bank_accounts %}
+        <tr class="hover:bg-slate-50/50 transition-colors">
+          <td class="px-6 py-4">
+            <div class="flex items-center gap-3">
+              <div class="w-9 h-9 bg-indigo-100 rounded-xl flex items-center justify-center text-xs font-bold text-indigo-700 shrink-0">
+                {{ (bank_mapping.get(acc.bank_code, acc.bank_code))[:2] }}
+              </div>
+              <div class="min-w-0">
+                <div class="flex items-center gap-2 flex-wrap">
+                  <span class="font-semibold text-slate-800">
+                    {{ acc.account_name or bank_mapping.get(acc.bank_code, acc.bank_code) }}
+                  </span>
+                  {% if acc.account_type %}
+                    {% set badge_color = {
+                      "예금": "bg-indigo-50 text-indigo-700 ring-indigo-200",
+                      "외화": "bg-sky-50 text-sky-700 ring-sky-200",
+                      "펀드": "bg-emerald-50 text-emerald-700 ring-emerald-200",
+                      "대출": "bg-red-50 text-red-700 ring-red-200",
+                      "보험": "bg-amber-50 text-amber-700 ring-amber-200"
+                    }.get(acc.account_type, "bg-slate-100 text-slate-600 ring-slate-200") %}
+                  <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ring-1 {{ badge_color }}">
+                    {{ acc.account_type }}
+                  </span>
+                  {% endif %}
+                </div>
+                {% if acc.account_name %}
+                <p class="text-xs text-slate-500 mt-0.5 truncate">{{ bank_mapping.get(acc.bank_code, acc.bank_code) }}</p>
+                {% endif %}
+              </div>
+            </div>
+          </td>
+          <td class="px-6 py-4 text-slate-600 font-mono text-xs">{{ acc.masked_account_no }}</td>
+          <td class="px-6 py-4 text-center">
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox"
+                     class="sr-only toggle-item"
+                     data-org-type="bank"
+                     data-item-id="{{ acc.hashed_account_no }}"
+                     {% if acc.is_mcp_enabled %}checked{% endif %} />
+              <div class="w-11 h-6 bg-slate-200 rounded-full transition-colors peer-focus:outline-none
+                          peer peer-checked:bg-indigo-500 toggle-track"></div>
+              <div class="absolute left-0.5 top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform
+                          peer-checked:translate-x-5 toggle-knob"></div>
+            </label>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="bg-white rounded-2xl border border-dashed border-slate-200 p-10 text-center">
+    <svg class="w-12 h-12 text-slate-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+        d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+    </svg>
+    <p class="text-slate-400 text-sm">연결된 은행 계좌가 없습니다.</p>
+    <a href="/settings" class="inline-block mt-3 text-indigo-600 text-sm font-medium hover:underline">기관 연결하기 →</a>
+  </div>
+  {% endif %}
+</section>
+
+<!-- ═══ 카드 섹션 ═══ -->
+<section>
+  <h2 class="text-lg font-semibold text-slate-700 mb-4 flex items-center gap-2">
+    <svg class="w-5 h-5 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+        d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
+    </svg>
+    카드
+  </h2>
+
+  {% if card_accounts %}
+  <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+    <table class="w-full text-sm">
+      <thead class="bg-slate-50 border-b border-slate-100">
+        <tr>
+          <th class="text-left px-6 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">카드사 / 카드명</th>
+          <th class="text-left px-6 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">카드번호</th>
+          <th class="text-center px-6 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">MCP 노출</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-50">
+        {% for card in card_accounts %}
+        <tr class="hover:bg-slate-50/50 transition-colors">
+          <td class="px-6 py-4">
+            <div class="flex items-center gap-3">
+              <!-- 카드 이미지 또는 폴백 아이콘 -->
+              {% if card.card_image_url %}
+              <img src="{{ card.card_image_url }}"
+                   alt="{{ card.card_name or card_mapping.get(card.card_code, card.card_code) }}"
+                   width="44"
+                   class="rounded-md object-cover shrink-0 border border-slate-100 shadow-sm"
+                   onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+              <div class="w-11 h-8 bg-purple-100 rounded-md hidden items-center justify-center text-xs font-bold text-purple-700 shrink-0">
+                {{ (card_mapping.get(card.card_code, card.card_code))[:2] }}
+              </div>
+              {% else %}
+              <div class="w-11 h-8 bg-purple-100 rounded-md flex items-center justify-center shrink-0">
+                <svg class="w-5 h-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
+                </svg>
+              </div>
+              {% endif %}
+              <div class="min-w-0">
+                <span class="font-semibold text-slate-800 block">
+                  {{ card.card_name or card_mapping.get(card.card_code, card.card_code) }}
+                </span>
+                {% if card.card_name %}
+                <p class="text-xs text-slate-500 mt-0.5 truncate">{{ card_mapping.get(card.card_code, card.card_code) }}</p>
+                {% endif %}
+              </div>
+            </div>
+          </td>
+          <td class="px-6 py-4 text-slate-600 font-mono text-xs">{{ card.masked_card_no }}</td>
+          <td class="px-6 py-4 text-center">
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox"
+                     class="sr-only toggle-item"
+                     data-org-type="card"
+                     data-item-id="{{ card.hashed_card_no }}"
+                     {% if card.is_mcp_enabled %}checked{% endif %} />
+              <div class="w-11 h-6 bg-slate-200 rounded-full transition-colors peer
+                          peer-checked:bg-purple-500 toggle-track"></div>
+              <div class="absolute left-0.5 top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform
+                          peer-checked:translate-x-5 toggle-knob"></div>
+            </label>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="bg-white rounded-2xl border border-dashed border-slate-200 p-10 text-center">
+    <svg class="w-12 h-12 text-slate-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+        d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"/>
+    </svg>
+    <p class="text-slate-400 text-sm">연결된 카드가 없습니다.</p>
+    <a href="/settings" class="inline-block mt-3 text-indigo-600 text-sm font-medium hover:underline">기관 연결하기 →</a>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // ═══ 통계: MCP 활성 계산 ═══
+  const allToggles = document.querySelectorAll('.toggle-item');
+  function updateStat() {
+    const active = [...allToggles].filter(t => t.checked).length;
+    document.getElementById('stat-active').textContent = active;
+  }
+  updateStat();
+
+  // ═══ 토스트 알림 ═══
+  function showToast(msg, ok = true) {
+    const toast = document.getElementById('toast');
+    toast.className = `fixed top-4 right-4 z-50 px-4 py-3 rounded-xl shadow-xl text-sm font-medium text-white
+                       transition-all duration-300 max-w-xs ${ok ? 'bg-emerald-500' : 'bg-red-500'}`;
+    toast.textContent = msg;
+    toast.style.transform = 'translateX(0)';
+    toast.style.opacity = '1';
+    setTimeout(() => {
+      toast.style.transform = 'translateX(calc(100% + 1rem))';
+      toast.style.opacity = '0';
+    }, 3000);
+  }
+
+  // ═══ 토글 스위치 이벤트 ═══
+  allToggles.forEach((input) => {
+    const label = input.closest('label');
+    const track = label.querySelector('.toggle-track');
+    const knob = label.querySelector('.toggle-knob');
+
+    // 초기 시각 동기화
+    syncVisual(input, track, knob);
+
+    input.addEventListener('change', async () => {
+      const orgType = input.dataset.orgType;
+      const itemId  = input.dataset.itemId;
+      const enabled = input.checked;
+
+      // 낙관적 UI 업데이트
+      syncVisual(input, track, knob);
+      updateStat();
+
+      try {
+        const res = await authFetch(`/api/finance/toggle/${orgType}/${itemId}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ is_mcp_enabled: enabled }),
+        });
+
+        if (!res.ok) {
+          throw new Error(await res.text());
+        }
+
+        showToast(`MCP ${enabled ? '노출' : '비노출'}로 변경되었습니다.`, true);
+      } catch (err) {
+        // 롤백
+        input.checked = !enabled;
+        syncVisual(input, track, knob);
+        updateStat();
+        showToast('변경 실패. 다시 시도해주세요.', false);
+        console.error(err);
+      }
+    });
+  });
+
+  function syncVisual(input, track, knob) {
+    if (input.checked) {
+      track.classList.remove('bg-slate-200');
+      const isBankRow = input.dataset.orgType === 'bank';
+      track.classList.add(isBankRow ? 'bg-indigo-500' : 'bg-purple-500');
+      knob.style.transform = 'translateX(1.25rem)';
+    } else {
+      track.classList.remove('bg-indigo-500', 'bg-purple-500');
+      track.classList.add('bg-slate-200');
+      knob.style.transform = 'translateX(0)';
+    }
+  }
+</script>
+{% endblock %}

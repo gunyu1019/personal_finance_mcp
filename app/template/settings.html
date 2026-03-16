@@ -1,0 +1,671 @@
+{% extends "base.html" %}
+{# app/template/settings.html — 설정 및 기관 연동 페이지 (모달 기반 UX) #}
+
+{% block title %}설정{% endblock %}
+
+{% block content %}
+<!-- 페이지 헤더 -->
+<div class="mb-8">
+  <h1 class="text-2xl font-bold text-slate-900">설정</h1>
+  <p class="text-slate-500 mt-1 text-sm">
+    AI 에이전트 토큰을 확인하고, 금융기관을 새롭게 연결하세요.
+  </p>
+</div>
+
+<!-- ═══════════════════════════════════════════
+     섹션 1: AI 에이전트 토큰
+════════════════════════════════════════════ -->
+<section class="mb-8">
+  <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+    <div class="px-6 py-4 border-b border-slate-100 flex items-center gap-2">
+      <svg class="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707
+             l5.964-5.964A6 6 0 1121 9z"/>
+      </svg>
+      <h2 class="font-semibold text-slate-800">AI 에이전트 토큰</h2>
+    </div>
+    <div class="px-6 py-5">
+      <p class="text-xs text-slate-400 mb-3">
+        AI 에이전트(MCP 클라이언트)가 이 서버에 연결할 때 사용하는 인증 토큰입니다.
+        외부에 노출되지 않도록 주의하세요.
+      </p>
+      <div class="flex items-center gap-2">
+        <code id="mcp-token-display"
+              class="flex-1 px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xs
+                     text-slate-700 break-all select-all">
+          {{ mcp_agent_token }}
+        </code>
+        <button id="btn-copy-token"
+                onclick="copyToken()"
+                class="shrink-0 px-3 py-2.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 border border-indigo-200
+                       rounded-xl text-xs font-medium transition-colors flex items-center gap-1.5">
+          <svg class="w-3.5 h-3.5" id="copy-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2"/>
+          </svg>
+          <span id="copy-text">복사</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════
+     섹션 2: 기관 연결
+════════════════════════════════════════════ -->
+<section>
+  <div class="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+    <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+      <div class="flex items-center gap-2">
+        <svg class="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4
+               0 00-5.656-5.656l-1.1 1.1"/>
+        </svg>
+        <h2 class="font-semibold text-slate-800">기관 연결</h2>
+      </div>
+      <button id="btn-open-modal"
+              class="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600
+                     hover:from-indigo-500 hover:to-purple-500 text-white rounded-xl text-sm font-medium
+                     transition-all shadow-md shadow-indigo-500/20">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+        </svg>
+        새로운 기관 연결하기
+      </button>
+    </div>
+    <div class="px-6 py-12 text-center">
+      <svg class="w-12 h-12 text-slate-200 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+          d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
+      </svg>
+      <p class="text-slate-400 text-sm">위 버튼을 눌러 새로운 금융기관을 연결하세요.</p>
+      <p class="text-slate-300 text-xs mt-1">연결된 계좌와 카드는 대시보드에서 확인할 수 있습니다.</p>
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+
+<!-- ═══════════════════════════════════════════
+     모달 오버레이
+════════════════════════════════════════════ -->
+{% block scripts %}
+
+<!-- 모달 마크업 -->
+<div id="modal-overlay"
+     class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+  <div id="modal-box"
+       class="bg-white rounded-2xl shadow-2xl w-full max-w-lg flex flex-col overflow-hidden"
+       style="max-height: 90vh">
+
+    <!-- 모달 헤더 -->
+    <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between shrink-0">
+      <div class="flex items-center gap-2 min-w-0">
+        <button id="modal-back"
+                class="hidden shrink-0 w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 transition-colors
+                       flex items-center justify-center text-slate-500"
+                aria-label="뒤로">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+          </svg>
+        </button>
+        <h3 id="modal-title" class="font-semibold text-slate-800 truncate">금융기관 선택</h3>
+      </div>
+      <button id="modal-close"
+              class="shrink-0 w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 transition-colors
+                     flex items-center justify-center text-slate-500"
+              aria-label="닫기">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- 모달 콘텐츠 (스크롤 영역) -->
+    <div class="flex-1 overflow-y-auto">
+
+      <!-- ── View 1: 기관 선택 ── -->
+      <div id="view-select">
+        <!-- 탭 -->
+        <div class="flex border-b border-slate-100 shrink-0">
+          <button id="tab-bank"
+                  class="flex-1 py-3 text-sm font-semibold text-indigo-600 border-b-2 border-indigo-500
+                         transition-colors"
+                  onclick="switchTab('bank')">
+            🏦 은행
+          </button>
+          <button id="tab-card"
+                  class="flex-1 py-3 text-sm font-medium text-slate-400 border-b-2 border-transparent
+                         hover:text-slate-600 transition-colors"
+                  onclick="switchTab('card')">
+            💳 카드
+          </button>
+        </div>
+        <!-- 기관 그리드 -->
+        <div class="p-4">
+          <div id="grid-bank" class="grid grid-cols-3 sm:grid-cols-4 gap-2"></div>
+          <div id="grid-card" class="grid grid-cols-3 sm:grid-cols-4 gap-2 hidden"></div>
+        </div>
+      </div>
+
+      <!-- ── View 2: 로그인 정보 입력 ── -->
+      <div id="view-form" class="hidden p-5">
+        <div class="flex items-center gap-3 mb-5 pb-4 border-b border-slate-100">
+          <div id="form-company-badge"
+               class="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center text-sm font-bold text-indigo-700 shrink-0">
+          </div>
+          <div>
+            <p id="form-company-name" class="font-semibold text-slate-800"></p>
+            <p class="text-xs text-slate-400 mt-0.5">로그인 정보를 입력하면 계좌/카드 정보를 가져옵니다.</p>
+          </div>
+        </div>
+        <div id="modal-dynamic-fields" class="space-y-4"></div>
+        <button id="modal-btn-sync"
+                class="mt-6 w-full py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500
+                       hover:to-purple-500 text-white font-semibold rounded-xl transition-all shadow-md
+                       shadow-indigo-500/20 flex items-center justify-center gap-2 text-sm">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101"/>
+          </svg>
+          연동하기
+        </button>
+      </div>
+
+      <!-- ── View 3: 진행 상황 (SSE) ── -->
+      <div id="view-progress" class="hidden p-5">
+
+        <!-- 단계 인디케이터 -->
+        <div class="flex items-center gap-1.5 mb-5">
+          <div class="flex flex-col items-center gap-1">
+            <div id="pdot-decrypting" class="w-3 h-3 rounded-full bg-slate-200 transition-colors"></div>
+            <span id="plabel-decrypting" class="text-[10px] text-slate-400 whitespace-nowrap">복호화</span>
+          </div>
+          <div class="flex-1 h-px bg-slate-200 mb-4"></div>
+          <div class="flex flex-col items-center gap-1">
+            <div id="pdot-fetching" class="w-3 h-3 rounded-full bg-slate-200 transition-colors"></div>
+            <span id="plabel-fetching" class="text-[10px] text-slate-400 whitespace-nowrap">조회</span>
+          </div>
+          <div class="flex-1 h-px bg-slate-200 mb-4"></div>
+          <div class="flex flex-col items-center gap-1">
+            <div id="pdot-saving" class="w-3 h-3 rounded-full bg-slate-200 transition-colors"></div>
+            <span id="plabel-saving" class="text-[10px] text-slate-400 whitespace-nowrap">저장</span>
+          </div>
+          <div class="flex-1 h-px bg-slate-200 mb-4"></div>
+          <div class="flex flex-col items-center gap-1">
+            <div id="pdot-done" class="w-3 h-3 rounded-full bg-slate-200 transition-colors"></div>
+            <span id="plabel-done" class="text-[10px] text-slate-400 whitespace-nowrap">완료</span>
+          </div>
+        </div>
+
+        <!-- 진행 바 (전체 너비) -->
+        <div class="w-full bg-slate-100 rounded-full h-1.5 mb-5 overflow-hidden">
+          <div id="progress-bar"
+               class="h-1.5 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all duration-500"
+               style="width: 0%"></div>
+        </div>
+
+        <!-- 로그 출력 -->
+        <div class="bg-slate-50 border border-slate-200 rounded-xl p-3">
+          <p class="text-[10px] font-medium text-slate-400 uppercase tracking-widest mb-2">실시간 로그</p>
+          <div id="progress-log"
+               class="min-h-[100px] max-h-52 overflow-y-auto space-y-1 font-mono text-xs text-slate-600">
+          </div>
+        </div>
+
+        <!-- 완료 메시지 + 확인 버튼 -->
+        <div id="sync-done-msg" class="hidden mt-5 text-center">
+          <div class="w-14 h-14 rounded-full bg-emerald-100 flex items-center justify-center mx-auto mb-3">
+            <svg class="w-7 h-7 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+            </svg>
+          </div>
+          <p class="font-semibold text-slate-800">연동이 완료되었습니다!</p>
+          <p class="text-xs text-slate-400 mt-1">대시보드에서 연결된 계좌 및 카드를 확인하세요.</p>
+          <div class="flex gap-3 mt-5">
+            <button id="modal-btn-close-done"
+                    class="flex-1 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-600 font-medium
+                           hover:bg-slate-50 transition-colors">
+              닫기
+            </button>
+            <a href="/"
+               class="flex-1 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-center text-sm text-white
+                      font-semibold transition-colors">
+              대시보드로
+            </a>
+          </div>
+        </div>
+
+        <!-- 오류 메시지 -->
+        <div id="sync-error-msg" class="hidden mt-5 text-center">
+          <div class="w-14 h-14 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-3">
+            <svg class="w-7 h-7 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </div>
+          <p class="font-semibold text-slate-800">연동에 실패했습니다.</p>
+          <p class="text-xs text-slate-400 mt-1">로그를 확인하고 다시 시도해주세요.</p>
+          <button id="modal-btn-retry"
+                  class="mt-5 w-full py-2.5 rounded-xl border border-slate-200 text-sm text-slate-600 font-medium
+                         hover:bg-slate-50 transition-colors">
+            다시 시도
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+// ───────────────────────────────────────────────────────────
+// 금융사 목록 (Jinja2 → JS 딕셔너리)
+// ───────────────────────────────────────────────────────────
+const BANK_MAPPING = JSON.parse('{{ bank_mapping | tojson }}');
+const CARD_MAPPING = JSON.parse('{{ card_mapping | tojson }}');
+
+// ───────────────────────────────────────────────────────────
+// 토큰 복사
+// ───────────────────────────────────────────────────────────
+async function copyToken() {
+  const token = document.getElementById('mcp-token-display').textContent.trim();
+  try {
+    await navigator.clipboard.writeText(token);
+    document.getElementById('copy-text').textContent = '복사됨 ✓';
+    setTimeout(() => { document.getElementById('copy-text').textContent = '복사'; }, 2000);
+  } catch {
+    document.getElementById('copy-text').textContent = '실패';
+  }
+}
+
+// ───────────────────────────────────────────────────────────
+// 상태 변수
+// ───────────────────────────────────────────────────────────
+let _selectedOrgType   = 'bank';
+let _selectedCode      = '';
+let _selectedName      = '';
+let _publicKey         = null;
+
+// ───────────────────────────────────────────────────────────
+// 공개키 캐싱 취득
+// ───────────────────────────────────────────────────────────
+async function fetchPublicKey() {
+  if (_publicKey) return _publicKey;
+  const res  = await fetch('/api/crypto/public-key');
+  const data = await res.json();
+  _publicKey = data.public_key;
+  return _publicKey;
+}
+
+// ───────────────────────────────────────────────────────────
+// 모달 열기 / 닫기
+// ───────────────────────────────────────────────────────────
+const overlay = document.getElementById('modal-overlay');
+
+function openModal() {
+  resetModal();
+  overlay.classList.remove('hidden');
+  overlay.classList.add('flex');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeModal() {
+  overlay.classList.add('hidden');
+  overlay.classList.remove('flex');
+  document.body.style.overflow = '';
+  resetModal();
+}
+
+function resetModal() {
+  showView('select');
+  switchTab('bank');
+  document.getElementById('modal-dynamic-fields').innerHTML = '';
+  document.getElementById('progress-log').innerHTML       = '';
+  document.getElementById('sync-done-msg').classList.add('hidden');
+  document.getElementById('sync-error-msg').classList.add('hidden');
+  document.getElementById('modal-back').classList.add('hidden');
+  document.getElementById('modal-title').textContent = '금융기관 선택';
+  resetSteps();
+}
+
+document.getElementById('btn-open-modal').addEventListener('click', openModal);
+document.getElementById('modal-close').addEventListener('click', closeModal);
+document.getElementById('modal-btn-close-done').addEventListener('click', closeModal);
+
+// 오버레이 클릭 시 닫기 (모달 박스 외부)
+overlay.addEventListener('click', (e) => {
+  if (e.target === overlay) closeModal();
+});
+
+// ESC 키로 닫기
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !overlay.classList.contains('hidden')) closeModal();
+});
+
+// ───────────────────────────────────────────────────────────
+// View 전환
+// ───────────────────────────────────────────────────────────
+function showView(name) {
+  ['select', 'form', 'progress'].forEach(v => {
+    document.getElementById(`view-${v}`).classList.toggle('hidden', v !== name);
+  });
+}
+
+// ───────────────────────────────────────────────────────────
+// 탭 전환 (은행 / 카드)
+// ───────────────────────────────────────────────────────────
+function switchTab(orgType) {
+  _selectedOrgType = orgType;
+
+  const isBank = orgType === 'bank';
+  const bankTab  = document.getElementById('tab-bank');
+  const cardTab  = document.getElementById('tab-card');
+
+  [bankTab, cardTab].forEach((tab, i) => {
+    const active = (i === 0) === isBank;
+    tab.className = `flex-1 py-3 text-sm transition-colors border-b-2 ${
+      active
+        ? 'font-semibold text-indigo-600 border-indigo-500'
+        : 'font-medium text-slate-400 border-transparent hover:text-slate-600'
+    }`;
+  });
+
+  document.getElementById('grid-bank').classList.toggle('hidden', !isBank);
+  document.getElementById('grid-card').classList.toggle('hidden',  isBank);
+}
+
+// ───────────────────────────────────────────────────────────
+// 기관 그리드 렌더링
+// ───────────────────────────────────────────────────────────
+function renderGrid(gridEl, mapping) {
+  gridEl.innerHTML = '';
+  for (const [code, name] of Object.entries(mapping)) {
+    const btn = document.createElement('button');
+    btn.className = `
+      px-2 py-3 rounded-xl border border-slate-200 bg-slate-50 hover:bg-indigo-50 hover:border-indigo-300
+      hover:text-indigo-700 text-slate-700 text-xs font-medium transition-all text-center leading-tight
+      focus:outline-none focus:ring-2 focus:ring-indigo-400
+    `.trim().replace(/\s+/g, ' ');
+    btn.textContent = name;
+    btn.dataset.code = code;
+    btn.dataset.name = name;
+    btn.addEventListener('click', () => onSelectCompany(code, name));
+    gridEl.appendChild(btn);
+  }
+}
+
+renderGrid(document.getElementById('grid-bank'), BANK_MAPPING);
+renderGrid(document.getElementById('grid-card'), CARD_MAPPING);
+
+// ───────────────────────────────────────────────────────────
+// 기관 선택 → View 2 (폼 입력)
+// ───────────────────────────────────────────────────────────
+async function onSelectCompany(code, name) {
+  _selectedCode = code;
+  _selectedName = name;
+
+  try {
+    const [formRes, pubKey] = await Promise.all([
+      fetch(`/api/finance/form/${_selectedOrgType}/${code}`),
+      fetchPublicKey(),
+    ]);
+
+    if (!formRes.ok) throw new Error('폼 조회 실패');
+    const { fields } = await formRes.json();
+
+    // 폼 렌더링
+    const dynFields = document.getElementById('modal-dynamic-fields');
+    dynFields.innerHTML = '';
+
+    for (const field of fields) {
+      const wrapper = document.createElement('div');
+      wrapper.innerHTML = `
+        <label class="block text-xs font-medium text-slate-500 mb-1.5" for="mfield-${field.name}">
+          ${field.label}
+          ${field.type === 'password'
+            ? '<span class="ml-1 px-1.5 py-0.5 bg-amber-50 text-amber-600 text-[10px] rounded font-medium">🔒 암호화 전송</span>'
+            : ''}
+        </label>
+        <input id="mfield-${field.name}"
+               type="${field.type}"
+               name="${field.name}"
+               placeholder="${field.label}"
+               autocomplete="${field.type === 'password' ? 'current-password' : 'off'}"
+               class="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800
+                      focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent
+                      focus:bg-white transition-all"
+               ${field.type === 'password' ? 'data-sensitive="true"' : ''} />
+      `;
+      dynFields.appendChild(wrapper);
+    }
+
+    // 헤더 업데이트
+    document.getElementById('form-company-badge').textContent = name.slice(0, 2);
+    document.getElementById('form-company-name').textContent  = name;
+    document.getElementById('modal-title').textContent        = '로그인 정보 입력';
+    document.getElementById('modal-back').classList.remove('hidden');
+
+    showView('form');
+
+    // 첫 번째 입력 필드에 포커스
+    setTimeout(() => {
+      const firstInput = dynFields.querySelector('input');
+      if (firstInput) firstInput.focus();
+    }, 100);
+
+  } catch (err) {
+    console.error(err);
+    alert('폼을 불러오는 데 실패했습니다. 다시 시도해주세요.');
+  }
+}
+
+// 뒤로 버튼
+document.getElementById('modal-back').addEventListener('click', () => {
+  showView('select');
+  document.getElementById('modal-back').classList.add('hidden');
+  document.getElementById('modal-title').textContent = '금융기관 선택';
+});
+
+// ───────────────────────────────────────────────────────────
+// 연동하기 → RSA 암호화 + POST + SSE 스트림 읽기
+// ───────────────────────────────────────────────────────────
+document.getElementById('modal-btn-sync').addEventListener('click', async () => {
+  const dynFields = document.getElementById('modal-dynamic-fields');
+  const loginData = {};
+  const pubKey    = await fetchPublicKey();
+  const encryptor = new JSEncrypt();
+  encryptor.setPublicKey(pubKey);
+
+  const inputs = dynFields.querySelectorAll('input');
+  for (const input of inputs) {
+    const val = input.value.trim();
+    if (!val) {
+      input.focus();
+      input.classList.add('ring-2', 'ring-red-400', 'border-red-300');
+      setTimeout(() => input.classList.remove('ring-2', 'ring-red-400', 'border-red-300'), 2000);
+      alert(`${input.placeholder} 항목을 입력해주세요.`);
+      return;
+    }
+    if (input.dataset.sensitive === 'true') {
+      const encrypted = encryptor.encrypt(val);
+      if (!encrypted) { alert('암호화 실패. 브라우저를 새로고침 후 다시 시도하세요.'); return; }
+      loginData[input.name] = encrypted;
+    } else {
+      loginData[input.name] = val;
+    }
+  }
+
+  // View 3 전환
+  document.getElementById('modal-title').textContent = '동기화 진행 중...';
+  document.getElementById('modal-back').classList.add('hidden');
+  showView('progress');
+  document.getElementById('sync-done-msg').classList.add('hidden');
+  document.getElementById('sync-error-msg').classList.add('hidden');
+  document.getElementById('progress-log').innerHTML = '';
+  document.getElementById('progress-bar').style.width = '5%';
+  resetSteps();
+
+  const token = getAuthToken();
+
+  try {
+    const res = await fetch('/api/finance/sync', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        org_type:     _selectedOrgType,
+        company_code: _selectedCode,
+        login_data:   loginData,
+      }),
+    });
+
+    if (!res.ok) {
+      pLogLine(`❌ 서버 오류: ${res.status}`, 'error');
+      showSyncError();
+      return;
+    }
+
+    // SSE 스트림 읽기
+    const reader  = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer    = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const parts = buffer.split('\n\n');
+      buffer = parts.pop();
+
+      for (const part of parts) {
+        const line = part.trim();
+        if (!line.startsWith('data:')) continue;
+        try {
+          const event = JSON.parse(line.slice(5).trim());
+          handleSseEvent(event);
+        } catch { /* 파싱 실패 무시 */ }
+      }
+    }
+  } catch (err) {
+    pLogLine(`❌ 연결 오류: ${err.message}`, 'error');
+    showSyncError();
+    console.error(err);
+  }
+});
+
+// 다시 시도 버튼
+document.getElementById('modal-btn-retry').addEventListener('click', () => {
+  document.getElementById('modal-title').textContent = '로그인 정보 입력';
+  document.getElementById('modal-back').classList.remove('hidden');
+  showView('form');
+});
+
+// ───────────────────────────────────────────────────────────
+// SSE 이벤트 핸들러
+// ───────────────────────────────────────────────────────────
+const STEP_PROGRESS = { decrypting: 20, fetching: 50, saving: 80, done: 100 };
+
+function handleSseEvent(event) {
+  switch (event.step) {
+    case 'decrypting':
+      activateStep('decrypting');
+      pLogLine('🔓 비밀번호 복호화 중...');
+      setProgress(STEP_PROGRESS.decrypting);
+      break;
+    case 'fetching':
+      activateStep('fetching');
+      pLogLine('🌐 금융기관 데이터 조회 중...');
+      setProgress(STEP_PROGRESS.fetching);
+      break;
+    case 'fetched':
+      pLogLine(`✅ ${event.count}건 데이터 조회 완료`);
+      break;
+    case 'saving':
+      activateStep('saving');
+      pLogLine('💾 데이터 저장 중...');
+      setProgress(STEP_PROGRESS.saving);
+      break;
+    case 'done':
+      activateStep('done');
+      setProgress(100);
+      pLogLine(`🎉 동기화 완료 — ${event.synced_count}건 저장됨`, 'success');
+      setTimeout(showSyncDone, 600);
+      break;
+    case 'error':
+      pLogLine(`❌ 오류: ${event.message}`, 'error');
+      showSyncError();
+      break;
+    default:
+      pLogLine(event.message || JSON.stringify(event));
+  }
+}
+
+function showSyncDone() {
+  document.getElementById('modal-title').textContent = '연동 완료';
+  document.getElementById('sync-done-msg').classList.remove('hidden');
+}
+
+function showSyncError() {
+  document.getElementById('modal-title').textContent = '연동 실패';
+  document.getElementById('sync-error-msg').classList.remove('hidden');
+}
+
+function setProgress(pct) {
+  document.getElementById('progress-bar').style.width = `${pct}%`;
+}
+
+// ───────────────────────────────────────────────────────────
+// 로그 / 단계 UI 헬퍼
+// ───────────────────────────────────────────────────────────
+function pLogLine(text, type = 'info') {
+  const log = document.getElementById('progress-log');
+  const el  = document.createElement('p');
+  el.textContent = `[${new Date().toLocaleTimeString()}] ${text}`;
+  el.className = {
+    info:    'text-slate-600',
+    success: 'text-emerald-600 font-semibold',
+    error:   'text-red-500 font-semibold',
+  }[type] || 'text-slate-600';
+  log.appendChild(el);
+  log.scrollTop = log.scrollHeight;
+}
+
+function activateStep(step) {
+  const steps = ['decrypting', 'fetching', 'saving', 'done'];
+  const idx   = steps.indexOf(step);
+
+  steps.forEach((s, i) => {
+    const dot   = document.getElementById(`pdot-${s}`);
+    const label = document.getElementById(`plabel-${s}`);
+    if (!dot) return;
+
+    if (i < idx) {
+      dot.className   = 'w-3 h-3 rounded-full bg-emerald-400 transition-colors';
+      label.className = 'text-[10px] text-emerald-500 whitespace-nowrap';
+    } else if (i === idx) {
+      const isLast = step === 'done';
+      dot.className   = `w-3 h-3 rounded-full transition-colors ${isLast ? 'bg-emerald-400' : 'bg-indigo-500 progress-pulse'}`;
+      label.className = `text-[10px] whitespace-nowrap ${isLast ? 'text-emerald-600 font-semibold' : 'text-indigo-600 font-medium'}`;
+    } else {
+      dot.className   = 'w-3 h-3 rounded-full bg-slate-200 transition-colors';
+      label.className = 'text-[10px] text-slate-400 whitespace-nowrap';
+    }
+  });
+}
+
+function resetSteps() {
+  ['decrypting', 'fetching', 'saving', 'done'].forEach(s => {
+    const dot   = document.getElementById(`pdot-${s}`);
+    const label = document.getElementById(`plabel-${s}`);
+    if (dot)   dot.className   = 'w-3 h-3 rounded-full bg-slate-200 transition-colors';
+    if (label) label.className = 'text-[10px] text-slate-400 whitespace-nowrap';
+  });
+  setProgress(0);
+}
+</script>
+{% endblock %}

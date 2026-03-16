@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<!--
+  src/template/login.html
+  관리자 로그인 페이지
+-->
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>관리자 로그인 — Personal Finance MCP</title>
+  <meta name="description" content="Personal Finance MCP 관리자 로그인 페이지" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: { extend: { colors: { brand: { 600:'#4f46e5', 700:'#4338ca', 900:'#1e1b4b' } } } }
+    }
+  </script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    body { font-family: 'Inter', ui-sans-serif, system-ui; }
+    .bg-mesh { background: linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #3730a3 100%); }
+    @keyframes float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+    .float-anim { animation: float 4s ease-in-out infinite; }
+  </style>
+</head>
+<body class="min-h-screen flex items-center justify-center bg-mesh">
+
+  <!-- 배경 장식 원 -->
+  <div class="absolute w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl top-20 left-20 pointer-events-none"></div>
+  <div class="absolute w-64 h-64 bg-purple-500/10 rounded-full blur-3xl bottom-20 right-20 pointer-events-none"></div>
+
+  <!-- 로그인 카드 -->
+  <div class="relative w-full max-w-md mx-4">
+    <div class="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-8 shadow-2xl float-anim">
+
+      <!-- 아이콘 -->
+      <div class="flex justify-center mb-6">
+        <div class="w-16 h-16 bg-indigo-500 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-500/40">
+          <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003
+              9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+          </svg>
+        </div>
+      </div>
+
+      <h1 class="text-2xl font-bold text-white text-center mb-1">관리자 로그인</h1>
+      <p class="text-indigo-300 text-sm text-center mb-8">Personal Finance MCP 관리 콘솔</p>
+
+      <!-- 에러 메시지 -->
+      <div id="error-msg" class="hidden mb-4 px-4 py-3 bg-red-500/20 border border-red-400/40 rounded-lg text-red-200 text-sm"></div>
+
+      <!-- 로그인 폼 -->
+      <form id="login-form" class="space-y-4">
+        <div>
+          <label for="password" class="block text-sm font-medium text-indigo-200 mb-1.5">관리자 비밀번호</label>
+          <input id="password" type="password" name="password" required
+                 class="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-indigo-300/60
+                        focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-all"
+                 placeholder="비밀번호를 입력하세요" autocomplete="current-password" />
+        </div>
+
+        <button id="btn-login" type="submit"
+                class="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold rounded-xl shadow-lg
+                       shadow-indigo-500/30 transition-all duration-200 flex items-center justify-center gap-2">
+          <span id="btn-text">로그인</span>
+          <svg id="btn-spinner" class="hidden w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+          </svg>
+        </button>
+      </form>
+    </div>
+
+    <p class="text-center text-indigo-400/60 text-xs mt-4">
+      모든 통신은 RSA E2EE로 보호됩니다.
+    </p>
+  </div>
+
+  <script>
+    const form = document.getElementById('login-form');
+    const errMsg = document.getElementById('error-msg');
+    const btnText = document.getElementById('btn-text');
+    const btnSpinner = document.getElementById('btn-spinner');
+
+    function setLoading(on) {
+      btnText.textContent = on ? '로그인 중...' : '로그인';
+      btnSpinner.classList.toggle('hidden', !on);
+      document.getElementById('btn-login').disabled = on;
+    }
+
+    function showError(msg) {
+      errMsg.textContent = msg;
+      errMsg.classList.remove('hidden');
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      errMsg.classList.add('hidden');
+      setLoading(true);
+
+      const password = document.getElementById('password').value;
+
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password }),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          showError(data.detail || '로그인 실패. 비밀번호를 확인해주세요.');
+          return;
+        }
+
+        const token = data.access_token;
+        // localStorage에 저장
+        localStorage.setItem('access_token', token);
+        // 페이지 인증을 위해 쿠키에도 설정 (24시간)
+        const maxAge = data.expires_in || 43200;
+        document.cookie = `access_token=${encodeURIComponent(token)}; Max-Age=${maxAge}; path=/; SameSite=Strict`;
+
+        // 대시보드로 이동
+        window.location.href = '/';
+      } catch (err) {
+        showError('서버 연결에 실패했습니다. 다시 시도해주세요.');
+      } finally {
+        setLoading(false);
+      }
+    });
+  </script>
+</body>
+</html>
