@@ -8,21 +8,29 @@ from typing import Any, AsyncGenerator, ClassVar, Literal, TYPE_CHECKING
 from fastapi import APIRouter, Depends, HTTPException, status, FastAPI
 from fastapi.responses import StreamingResponse
 from fastapi_restful.cbv import cbv
+from sqlalchemy import func, select
 
 from app.api.auth import get_current_admin
 from app.core.crypto import decrypt_data, encrypt_sensitive_data
-from app.core.config import settings, CARD_PASSWORD_REQUIRED_CODES
+from app.core.config import settings, BANK_MAPPING, CARD_MAPPING, CARD_PASSWORD_REQUIRED_CODES
 from app.core.database import AsyncSessionFactory
 from app.core.security import hash_data, mask_account_no, mask_card_no
 from app.dto.bank_account_dto import BankAccountUpsertData
 from app.dto.card_account_dto import CardAccountUpsertData
+from app.model.bank_account import BankAccount
+from app.model.card_account import CardAccount
 from app.repository.bank_account_repository import BankAccountRepository
 from app.repository.card_account_repository import CardAccountRepository
 from app.repository.system_repository import SystemRepository
 from app.schema.finance import (
+    DisconnectResponse,
     FormField,
     FormResponse,
+    InstitutionItem,
+    InstitutionsResponse,
+    ResyncRequest,
     SyncRequest,
+    SyncResponse,
     ToggleRequest,
     ToggleResponse,
 )
@@ -385,6 +393,145 @@ class FinanceAPI:
         """기관별 동적 로그인 폼 반환 API."""
         fields = self._generate_form_fields(org_type, company_code)
         return FormResponse(fields=fields)
+
+    @router.get(
+        "/institutions",
+        response_model=InstitutionsResponse,
+        summary="연결된 기관 목록 조회",
+        description="DB에 데이터가 있는 은행/카드사 코드별 목록과 계좌·카드 수를 반환합니다.",
+    )
+    async def get_connected_institutions(self) -> InstitutionsResponse:
+        """연결된 기관 목록 API."""
+        bank_repo = BankAccountRepository()
+        bank_repo.set_factory(AsyncSessionFactory)
+        card_repo = CardAccountRepository()
+        card_repo.set_factory(AsyncSessionFactory)
+
+        banks: list[InstitutionItem] = []
+        cards: list[InstitutionItem] = []
+
+        async with bank_repo as repo:
+            result = await repo._session.execute(
+                select(BankAccount.bank_code, func.count(BankAccount.hashed_account_no))
+                .group_by(BankAccount.bank_code)
+            )
+            for row in result.all():
+                code = row[0]
+                banks.append(InstitutionItem(
+                    code=code,
+                    name=BANK_MAPPING.get(code, f"은행({code})"),
+                    account_count=row[1],
+                ))
+
+        async with card_repo as repo:
+            result = await repo._session.execute(
+                select(CardAccount.card_code, func.count(CardAccount.hashed_card_no))
+                .group_by(CardAccount.card_code)
+            )
+            for row in result.all():
+                code = row[0]
+                cards.append(InstitutionItem(
+                    code=code,
+                    name=CARD_MAPPING.get(code, f"카드사({code})"),
+                    account_count=row[1],
+                ))
+
+        return InstitutionsResponse(banks=banks, cards=cards)
+
+    @router.delete(
+        "/institution/{institution_code}",
+        response_model=DisconnectResponse,
+        status_code=status.HTTP_200_OK,
+        summary="기관 연결 해제",
+        description="해당 기관 코드의 모든 은행 계좌·카드 계좌를 DB에서 삭제합니다.",
+    )
+    async def disconnect_institution(self, institution_code: str) -> DisconnectResponse:
+        """기관 연결 해제 API."""
+        bank_repo = BankAccountRepository()
+        bank_repo.set_factory(AsyncSessionFactory)
+        card_repo = CardAccountRepository()
+        card_repo.set_factory(AsyncSessionFactory)
+
+        deleted_banks = 0
+        deleted_cards = 0
+
+        async with bank_repo as repo:
+            deleted_banks = await repo.delete_by_bank_code(institution_code)
+            await repo._session.commit()
+
+        async with card_repo as repo:
+            deleted_cards = await repo.delete_by_card_code(institution_code)
+            await repo._session.commit()
+
+        logger.info("기관 연결 해제: code=%s banks=%s cards=%s", institution_code, deleted_banks, deleted_cards)
+        return DisconnectResponse(
+            message=f"연결이 해제되었습니다. (은행 {deleted_banks}건, 카드 {deleted_cards}건 삭제)",
+            deleted_bank_accounts=deleted_banks,
+            deleted_card_accounts=deleted_cards,
+        )
+
+    @router.post(
+        "/sync/{institution_code}",
+        response_model=SyncResponse,
+        status_code=status.HTTP_200_OK,
+        summary="기관 재동기화",
+        description="해당 기관의 Codef API를 다시 호출하여 계좌/카드 정보를 가져와 Upsert합니다.",
+    )
+    async def resync_institution(
+        self,
+        institution_code: str,
+        body: ResyncRequest,
+    ) -> SyncResponse:
+        """기관 재동기화 API (로그인 정보 필요)."""
+        org_type: Literal["bank", "card"] | None = None
+        if institution_code in BANK_MAPPING:
+            org_type = "bank"
+        elif institution_code in CARD_MAPPING:
+            org_type = "card"
+
+        if org_type is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"알 수 없는 기관 코드입니다: {institution_code}",
+            )
+
+        try:
+            decrypted_login_data = self._decrypt_login_data(dict(body.login_data))
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"복호화 오류: {exc.args[0]} 필드 처리 실패",
+            ) from exc
+
+        try:
+            if org_type == "bank":
+                raw_items = await self._fetch_bank_accounts(institution_code, decrypted_login_data)
+            else:
+                raw_items = await self._fetch_card_accounts(institution_code, decrypted_login_data)
+        except Exception as exc:
+            logger.error("재동기화 데이터 조회 실패: %s", exc)
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"금융기관 데이터 조회 실패: {exc}",
+            ) from exc
+
+        try:
+            synced_count = await self._save_items(
+                org_type, institution_code, raw_items, decrypted_login_data
+            )
+        except Exception as exc:
+            logger.error("재동기화 저장 실패: %s", exc)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"저장 실패: {exc}",
+            ) from exc
+
+        logger.info("재동기화 완료: code=%s org_type=%s synced=%s", institution_code, org_type, synced_count)
+        return SyncResponse(
+            org_type=org_type,
+            company_code=institution_code,
+            synced_count=synced_count,
+        )
 
     @router.post(
         "/sync",

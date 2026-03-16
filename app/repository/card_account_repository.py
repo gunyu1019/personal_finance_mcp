@@ -1,7 +1,7 @@
 # src/repository/card_account_repository.py
 
 from __future__ import annotations
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
 from app.dto.card_account_dto import CardAccountUpsertData
 from app.model.card_account import CardAccount
@@ -51,6 +51,8 @@ class CardAccountRepository(BaseRepository):
                 card_code=data.card_code,
                 hashed_card_no=data.hashed_card_no,
                 masked_card_no=data.masked_card_no,
+                encrypted_card_no=data.encrypted_card_no,
+                encrypted_card_password=data.encrypted_card_password,
                 card_name=data.card_name,
                 card_image_url=data.card_image_url,
                 is_mcp_enabled=True,
@@ -60,11 +62,15 @@ class CardAccountRepository(BaseRepository):
             await self._session.refresh(card)
             return card
 
-        # 기존 레코드: is_mcp_enabled 상태는 절대 덮어쓰지 않는다.
+        # 기존 레코드: is_mcp_enabled 상태는 절대 덮어쓰지 않는다. 암호화 필드는 갱신한다.
         existing.card_code = data.card_code
         existing.masked_card_no = data.masked_card_no
         existing.card_name = data.card_name
         existing.card_image_url = data.card_image_url
+        if data.encrypted_card_no is not None:
+            existing.encrypted_card_no = data.encrypted_card_no
+        if data.encrypted_card_password is not None:
+            existing.encrypted_card_password = data.encrypted_card_password
         await self._session.flush()
         return existing
 
@@ -128,3 +134,22 @@ class CardAccountRepository(BaseRepository):
         card.is_mcp_enabled = enabled
         await self._session.flush()
         return card
+
+    async def delete_by_card_code(self, card_code: str) -> int:
+        """
+        특정 기관 코드(card_code)에 해당하는 모든 카드를 삭제합니다.
+
+        Args:
+            card_code: CODEF 카드사 코드 (예: "0306")
+
+        Returns:
+            삭제된 행 수
+        """
+        if self._session is NotImplemented or self._session is None:
+            raise RuntimeError(
+                "DB 세션이 초기화되지 않았습니다. "
+                "async with CardAccountRepository() as repo: 형식으로 사용하세요."
+            )
+        result = await self._session.execute(delete(CardAccount).where(CardAccount.card_code == card_code))
+        await self._session.flush()
+        return result.rowcount or 0

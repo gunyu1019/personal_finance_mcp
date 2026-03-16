@@ -1,7 +1,7 @@
 # src/repository/bank_account_repository.py
 
 from __future__ import annotations
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
 from app.dto.bank_account_dto import BankAccountUpsertData
 from app.model.bank_account import BankAccount
@@ -51,6 +51,7 @@ class BankAccountRepository(BaseRepository):
                 bank_code=data.bank_code,
                 hashed_account_no=data.hashed_account_no,
                 masked_account_no=data.masked_account_no,
+                encrypted_account_no=data.encrypted_account_no,
                 account_name=data.account_name,
                 account_type=data.account_type,
                 is_mcp_enabled=True,
@@ -60,11 +61,13 @@ class BankAccountRepository(BaseRepository):
             await self._session.refresh(account)
             return account
 
-        # 기존 레코드: is_mcp_enabled 상태는 절대 덮어쓰지 않는다.
+        # 기존 레코드: is_mcp_enabled 상태는 절대 덮어쓰지 않는다. 암호화 필드는 갱신한다.
         existing.bank_code = data.bank_code
         existing.masked_account_no = data.masked_account_no
         existing.account_name = data.account_name
         existing.account_type = data.account_type
+        if data.encrypted_account_no is not None:
+            existing.encrypted_account_no = data.encrypted_account_no
         await self._session.flush()
         return existing
 
@@ -128,3 +131,22 @@ class BankAccountRepository(BaseRepository):
         account.is_mcp_enabled = enabled
         await self._session.flush()
         return account
+
+    async def delete_by_bank_code(self, bank_code: str) -> int:
+        """
+        특정 기관 코드(bank_code)에 해당하는 모든 계좌를 삭제합니다.
+
+        Args:
+            bank_code: CODEF 기관 코드 (예: "0088")
+
+        Returns:
+            삭제된 행 수
+        """
+        if self._session is NotImplemented or self._session is None:
+            raise RuntimeError(
+                "DB 세션이 초기화되지 않았습니다. "
+                "async with BankAccountRepository() as repo: 형식으로 사용하세요."
+            )
+        result = await self._session.execute(delete(BankAccount).where(BankAccount.bank_code == bank_code))
+        await self._session.flush()
+        return result.rowcount or 0
