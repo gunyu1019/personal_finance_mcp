@@ -1,7 +1,7 @@
 # src/schema/finance.py
 
 from __future__ import annotations
-from typing import Any, Literal
+from typing import Any, Literal, Optional
 from pydantic import BaseModel, Field
 
 
@@ -38,11 +38,15 @@ class SyncRequest(BaseModel):
 
 
 class ResyncRequest(BaseModel):
-    """재동기화 API 요청 스키마 (POST /api/finance/sync/{institution_code})."""
+    """재동기화 API 요청 스키마 (POST /api/finance/sync/{institution_code}).
 
-    login_data: dict[str, Any] = Field(
-        ...,
-        description="폼에서 입력받은 로그인 데이터 (암호화된 비밀번호 등).",
+    login_data 생략 시 DB의 connected_id와 저장된 자격증명으로 자동 동기화를 시도합니다.
+    추가 입력(생년월일 등)이 필요한 기관은 428로 응답하여 프론트엔드 모달을 유도합니다.
+    """
+
+    login_data: Optional[dict[str, Any]] = Field(
+        None,
+        description="폼에서 입력받은 로그인 데이터 (암호화된 비밀번호 등). 생략 가능.",
     )
 
 
