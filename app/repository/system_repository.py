@@ -53,3 +53,22 @@ class SystemRepository(BaseRepository):
         await self._session.flush()   # id 할당을 위해 flush (commit 은 호출자 책임)
         await self._session.refresh(new_config)
         return new_config
+
+    async def regenerate_mcp_token(self) -> str:
+        """
+        MCP 에이전트 토큰을 재발급합니다.
+        
+        Returns:
+            str: 새로 생성된 MCP 에이전트 토큰
+        """
+        if self._session is NotImplemented or self._session is None:
+            raise RuntimeError(
+                "DB 세션이 초기화되지 않았습니다. "
+                "async with SystemRepository() as repo: 형식으로 사용하세요."
+            )
+
+        config = await self.get_or_create_config()
+        new_token = secrets.token_hex(_TOKEN_BYTES)  # 64자 hex
+        config.mcp_agent_token = new_token
+        await self._session.flush()
+        return new_token

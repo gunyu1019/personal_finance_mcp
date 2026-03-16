@@ -10,7 +10,8 @@ from fastapi_restful.cbv import cbv
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
-from app.core.database import get_session
+from app.core.database import get_session, AsyncSessionFactory
+from app.repository.system_repository import SystemRepository
 from app.schema.auth import LoginRequest, TokenResponse
 
 logger = logging.getLogger(__name__)
@@ -146,6 +147,23 @@ class AuthAPI:
 
         logger.info("관리자 로그아웃 성공 — 인증 쿠키 파기 완료")
         return {"message": "로그아웃 성공"}
+
+    @router.post(
+        "/regenerate-mcp-token",
+        summary="MCP 에이전트 토큰 재발급",
+        description="새로운 MCP 에이전트 토큰을 생성합니다. 관리자 인증이 필요합니다.",
+        dependencies=[Depends(get_current_admin)],
+    )
+    async def regenerate_mcp_token(self) -> dict[str, str]:
+        """MCP 에이전트 토큰 재발급 API."""
+        system_repo = SystemRepository()
+        system_repo.set_factory(AsyncSessionFactory)
+        async with system_repo as repo:
+            new_token = await repo.regenerate_mcp_token()
+            await repo._session.commit()
+
+        logger.info("MCP 에이전트 토큰 재발급 완료")
+        return {"mcp_agent_token": new_token}
 
 
 def setup(fastapi_app: FastAPI) -> None:
