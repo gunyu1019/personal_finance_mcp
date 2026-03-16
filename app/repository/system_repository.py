@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 import secrets
+from typing import Optional
 
 from sqlalchemy import select
 
@@ -72,3 +73,29 @@ class SystemRepository(BaseRepository):
         config.mcp_agent_token = new_token
         await self._session.flush()
         return new_token
+
+    async def get_connected_id(self) -> Optional[str]:
+        """
+        DB에 저장된 Codef connected_id를 반환합니다.
+
+        Returns:
+            Optional[str]: connected_id 문자열 또는 None (미등록 시)
+        """
+        config = await self.get_or_create_config()
+        return config.codef_connected_id
+
+    async def save_connected_id(self, connected_id: str) -> None:
+        """
+        Codef connected_id를 DB에 저장합니다. (최초 발급 또는 갱신)
+
+        Args:
+            connected_id: Codef API로부터 발급받은 connected_id 문자열
+        """
+        if self._session is NotImplemented or self._session is None:
+            raise RuntimeError(
+                "DB 세션이 초기화되지 않았습니다. "
+                "async with SystemRepository() as repo: 형식으로 사용하세요."
+            )
+        config = await self.get_or_create_config()
+        config.codef_connected_id = connected_id
+        await self._session.flush()

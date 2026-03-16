@@ -3,7 +3,7 @@
 
 import json
 import logging
-from typing import Any, AsyncGenerator, ClassVar, Literal, TYPE_CHECKING
+from typing import Any, AsyncGenerator, ClassVar, Literal, Optional, TYPE_CHECKING
 
 from fastapi import APIRouter, Depends, HTTPException, status, FastAPI
 from fastapi.responses import StreamingResponse
@@ -11,7 +11,7 @@ from fastapi_restful.cbv import cbv
 from sqlalchemy import func, select
 
 from app.api.auth import get_current_admin
-from app.core.crypto import decrypt_data, encrypt_sensitive_data
+from app.core.crypto import decrypt_data, encrypt_sensitive_data, decrypt_sensitive_data
 from app.core.config import settings, BANK_MAPPING, CARD_MAPPING, CARD_PASSWORD_REQUIRED_CODES
 from app.core.database import AsyncSessionFactory
 from app.core.security import hash_data, mask_account_no, mask_card_no
@@ -35,6 +35,7 @@ from app.schema.finance import (
     ToggleResponse,
 )
 from app.service.codef.client import CodefClient
+from app.service.codef.auth.account import Account
 from app.service.codef.auth.account_register import AccountRegister
 from app.service.codef.property import API_DOMAIN, DEMO_DOMAIN, SANDBOX_DOMAIN
 
@@ -148,15 +149,48 @@ class FinanceAPI:
             await repo._session.commit()
             return config.hash_salt
 
-    async def _fetch_bank_accounts(self, company_code: str, login_data: dict[str, Any]) -> list[_MockBankRawAccount]:
-        """실제 CODEF API를 통해 은행 계좌를 조회합니다."""
-        base_url = API_DOMAIN if settings.CODEF_MODE == "live" else (SANDBOX_DOMAIN if settings.CODEF_MODE == "sandbox" else DEMO_DOMAIN)
-        client = CodefClient(
+    def _create_codef_client(self) -> CodefClient:
+        """설정 기반 CodefClient 인스턴스를 생성합니다."""
+        base_url = (
+            API_DOMAIN if settings.CODEF_MODE == "live"
+            else (SANDBOX_DOMAIN if settings.CODEF_MODE == "sandbox" else DEMO_DOMAIN)
+        )
+        return CodefClient(
             public_key_pem=settings.CODEF_PUBLIC_KEY,
             client_id=settings.CODEF_CLIENT_ID,
             client_secret=settings.CODEF_CLIENT_SECRET,
-            base_url=base_url
+            base_url=base_url,
         )
+
+    async def _get_connected_id(self) -> Optional[str]:
+        """DB에서 codef_connected_id를 조회합니다."""
+        system_repo = SystemRepository()
+        system_repo.set_factory(AsyncSessionFactory)
+        async with system_repo as repo:
+            return await repo.get_connected_id()
+
+    async def _persist_connected_id(self, connected_id: str) -> None:
+        """codef_connected_id를 DB에 저장(또는 갱신)합니다."""
+        system_repo = SystemRepository()
+        system_repo.set_factory(AsyncSessionFactory)
+        async with system_repo as repo:
+            await repo.save_connected_id(connected_id)
+            await repo._session.commit()
+
+    async def _fetch_bank_accounts(
+        self,
+        company_code: str,
+        login_data: dict[str, Any],
+        existing_connected_id: Optional[str] = None,
+    ) -> tuple[list[_MockBankRawAccount], str]:
+        """
+        Codef API로 은행 계좌를 조회합니다.
+
+        - existing_connected_id가 없으면 auth_create_account로 신규 등록 후 connected_id 발급.
+        - 있으면 auth_add_account로 기존 connected_id에 기관만 추가.
+        - 발급/유지된 connected_id와 계좌 목록을 함께 반환합니다.
+        """
+        client = self._create_codef_client()
         try:
             account_register = AccountRegister(
                 business_type="BK",
@@ -167,24 +201,32 @@ class FinanceAPI:
                 password=login_data.get("password", ""),
                 birth_date=login_data.get("birthDate"),
             )
-            auth_res = await client.auth_create_account([account_register])
+
+            if existing_connected_id:
+                auth_res = await client.auth_add_account(existing_connected_id, [account_register])
+            else:
+                auth_res = await client.auth_create_account([account_register])
+
             if auth_res.result.code not in ("CF-00000", "CF-11200"):
                 raise ValueError(f"계정 등록 실패: {auth_res.result.message}")
-            
-            # 응답에서 connected_id 확보 (만약 존재하지 않으면 폼 데이터를 임시 사용)
-            connected_id = auth_res.data.connected_id if auth_res.data else login_data.get("id", "")
-            
+
+            connected_id: str = (
+                auth_res.data.connected_id
+                if auth_res.data and auth_res.data.connected_id
+                else existing_connected_id or login_data.get("id", "")
+            )
+
             res = await client.bank_account_list(
                 organization=company_code,
                 connected_id=connected_id,
                 birth_date=login_data.get("birthDate"),
                 withdraw_account_no=login_data.get("withdrawAccountNo"),
-                withdraw_account_password=login_data.get("withdrawAccountPassword")
+                withdraw_account_password=login_data.get("withdrawAccountPassword"),
             )
-            
+
             if res.result.code != "CF-00000":
                 raise ValueError(f"은행 계좌 조회 실패: {res.result.message}")
-                
+
             _ACCOUNT_TYPE_MAP = {
                 "res_deposit_trust": "예금",
                 "res_foreign_currency": "외화",
@@ -192,7 +234,7 @@ class FinanceAPI:
                 "res_loan": "대출",
                 "res_insurance": "보험",
             }
-            out = []
+            out: list[_MockBankRawAccount] = []
             if res.data:
                 for attr, acct_type in _ACCOUNT_TYPE_MAP.items():
                     val = getattr(res.data, attr, None)
@@ -206,19 +248,24 @@ class FinanceAPI:
                                 account_name=getattr(item, "res_account_name", None) or None,
                                 account_type=acct_type,
                             ))
-            return out
+            return out, connected_id
         finally:
             await client.close()
 
-    async def _fetch_card_accounts(self, company_code: str, login_data: dict[str, Any]) -> list[_MockCardRawAccount]:
-        """실제 CODEF API를 통해 카드 목록을 조회합니다."""
-        base_url = API_DOMAIN if settings.CODEF_MODE == "live" else (SANDBOX_DOMAIN if settings.CODEF_MODE == "sandbox" else DEMO_DOMAIN)
-        client = CodefClient(
-            public_key_pem=settings.CODEF_PUBLIC_KEY,
-            client_id=settings.CODEF_CLIENT_ID,
-            client_secret=settings.CODEF_CLIENT_SECRET,
-            base_url=base_url
-        )
+    async def _fetch_card_accounts(
+        self,
+        company_code: str,
+        login_data: dict[str, Any],
+        existing_connected_id: Optional[str] = None,
+    ) -> tuple[list[_MockCardRawAccount], str]:
+        """
+        Codef API로 카드 목록을 조회합니다.
+
+        - existing_connected_id가 없으면 auth_create_account로 신규 등록.
+        - 있으면 auth_add_account로 기관 추가.
+        - 발급/유지된 connected_id와 카드 목록을 함께 반환합니다.
+        """
+        client = self._create_codef_client()
         try:
             account_register = AccountRegister(
                 business_type="CD",
@@ -231,24 +278,33 @@ class FinanceAPI:
                 card_no=login_data.get("cardNo"),
                 card_password=login_data.get("cardPassword"),
             )
-            auth_res = await client.auth_create_account([account_register])
+
+            if existing_connected_id:
+                auth_res = await client.auth_add_account(existing_connected_id, [account_register])
+            else:
+                auth_res = await client.auth_create_account([account_register])
+
             if auth_res.result.code not in ("CF-00000", "CF-11200"):
                 raise ValueError(f"계정 등록 실패: {auth_res.result.message}")
-            
-            connected_id = auth_res.data.connected_id if auth_res.data else login_data.get("id", "")
-            
+
+            connected_id: str = (
+                auth_res.data.connected_id
+                if auth_res.data and auth_res.data.connected_id
+                else existing_connected_id or login_data.get("id", "")
+            )
+
             res = await client.card_account_list(
                 organization=company_code,
                 connected_id=connected_id,
                 birth_date=login_data.get("birthDate"),
                 card_no=login_data.get("cardNo"),
-                card_password=login_data.get("cardPassword")
+                card_password=login_data.get("cardPassword"),
             )
-            
+
             if res.result.code != "CF-00000":
                 raise ValueError(f"카드 목록 조회 실패: {res.result.message}")
-                
-            out = []
+
+            out: list[_MockCardRawAccount] = []
             if res.data:
                 items = res.data if isinstance(res.data, list) else [res.data]
                 for item in items:
@@ -258,12 +314,18 @@ class FinanceAPI:
                             card_name=getattr(item, "res_card_name", None) or None,
                             card_image_url=getattr(item, "res_image_link", None) or None,
                         ))
-            return out
+            return out, connected_id
         finally:
             await client.close()
 
-    async def _save_items(self, org_type: str, company_code: str, raw_items: list[_MockBankRawAccount] | list[_MockCardRawAccount], login_data: dict[str, Any] | None = None) -> int:
-        """가져온 금융 데이터를 해싱 및 마스킹 처리하여 DB에 저장합니다."""
+    async def _save_items(
+        self,
+        org_type: str,
+        company_code: str,
+        raw_items: list[_MockBankRawAccount] | list[_MockCardRawAccount],
+        login_data: dict[str, Any] | None = None,
+    ) -> int:
+        """가져온 금융 데이터를 해싱·마스킹·암호화하여 DB에 저장합니다."""
         if not raw_items:
             return 0
         salt = await self._get_hash_salt()
@@ -277,12 +339,11 @@ class FinanceAPI:
                         bank_code=company_code,
                         hashed_account_no=hash_data(raw_no, salt),
                         masked_account_no=mask_account_no(raw_no),
-                        encrypted_account_no=encrypt_sensitive_data(raw_no),  # 원본 계좌번호 암호화
+                        encrypted_account_no=encrypt_sensitive_data(raw_no),
                         account_name=getattr(raw, "account_name", None),
                         account_type=getattr(raw, "account_type", None),
                     )
                 )
-
             bank_repo = BankAccountRepository()
             bank_repo.set_factory(AsyncSessionFactory)
             async with bank_repo as repo:
@@ -292,32 +353,29 @@ class FinanceAPI:
 
         else:
             upsert_records_card: list[CardAccountUpsertData] = []
-            # 카드 비밀번호는 특정 카드사에서만 저장 (데이터 최소화 원칙)
             card_password = login_data.get("cardPassword", "") if login_data else ""
-            
+
             for raw in raw_items:
                 raw_no_c: str = raw.raw_card_no  # type: ignore[union-attr]
-                
-                # 비밀번호가 필수인 카드사인지 확인
+
                 encrypted_password = None
                 if company_code in CARD_PASSWORD_REQUIRED_CODES and card_password:
                     encrypted_password = encrypt_sensitive_data(card_password)
-                    logger.info(f"카드사 {company_code}: 비밀번호 저장 (API 통신 필수)")
+                    logger.info("카드사 %s: 비밀번호 저장 (API 통신 필수)", company_code)
                 else:
-                    logger.info(f"카드사 {company_code}: 비밀번호 미저장 (데이터 최소화)")
-                
+                    logger.info("카드사 %s: 비밀번호 미저장 (데이터 최소화)", company_code)
+
                 upsert_records_card.append(
                     CardAccountUpsertData(
                         card_code=company_code,
                         hashed_card_no=hash_data(raw_no_c, salt),
                         masked_card_no=mask_card_no(raw_no_c),
-                        encrypted_card_no=encrypt_sensitive_data(raw_no_c),  # 원본 카드번호 암호화
-                        encrypted_card_password=encrypted_password,  # 조건부 비밀번호 암호화
+                        encrypted_card_no=encrypt_sensitive_data(raw_no_c),
+                        encrypted_card_password=encrypted_password,
                         card_name=getattr(raw, "card_name", None),
                         card_image_url=getattr(raw, "card_image_url", None),
                     )
                 )
-
             card_repo = CardAccountRepository()
             card_repo.set_factory(AsyncSessionFactory)
             async with card_repo as repo:
@@ -443,10 +501,54 @@ class FinanceAPI:
         response_model=DisconnectResponse,
         status_code=status.HTTP_200_OK,
         summary="기관 연결 해제",
-        description="해당 기관 코드의 모든 은행 계좌·카드 계좌를 DB에서 삭제합니다.",
+        description=(
+            "Codef 서버의 연동을 먼저 해제(auth_delete_account)한 후, "
+            "로컬 DB의 계좌·카드 레코드를 삭제합니다."
+        ),
     )
     async def disconnect_institution(self, institution_code: str) -> DisconnectResponse:
-        """기관 연결 해제 API."""
+        """기관 연결 해제 API — Codef Unlink 후 로컬 DB 삭제."""
+        # 기관 유형 판별
+        if institution_code in BANK_MAPPING:
+            business_type: Literal["BK", "CD"] = "BK"
+        elif institution_code in CARD_MAPPING:
+            business_type = "CD"
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"알 수 없는 기관 코드입니다: {institution_code}",
+            )
+
+        # connected_id 조회 — 있으면 Codef API로 먼저 연동 해제
+        connected_id = await self._get_connected_id()
+        if connected_id:
+            client = self._create_codef_client()
+            try:
+                account_obj = Account(
+                    client_type="P",
+                    organization=institution_code,
+                    business_type=business_type,
+                )
+                unlink_res = await client.auth_delete_account([account_obj])
+                # CF-00000: 성공 / CF-12004: 이미 삭제됨 (둘 다 허용)
+                if unlink_res.result.code not in ("CF-00000", "CF-12004"):
+                    raise HTTPException(
+                        status_code=status.HTTP_502_BAD_GATEWAY,
+                        detail=f"Codef 연동 해제 실패: {unlink_res.result.message}",
+                    )
+                logger.info("Codef 연동 해제 성공 — code=%s connected_id=%s", institution_code, connected_id)
+            except HTTPException:
+                raise
+            except Exception as exc:
+                logger.error("Codef 연동 해제 중 오류 — code=%s error=%s", institution_code, exc)
+                raise HTTPException(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    detail=f"Codef API 통신 오류: {exc}",
+                ) from exc
+            finally:
+                await client.close()
+
+        # Codef 통신 성공(또는 connected_id 없음) 후 로컬 DB 삭제
         bank_repo = BankAccountRepository()
         bank_repo.set_factory(AsyncSessionFactory)
         card_repo = CardAccountRepository()
@@ -463,7 +565,7 @@ class FinanceAPI:
             deleted_cards = await repo.delete_by_card_code(institution_code)
             await repo._session.commit()
 
-        logger.info("기관 연결 해제: code=%s banks=%s cards=%s", institution_code, deleted_banks, deleted_cards)
+        logger.info("기관 연결 해제 완료: code=%s banks=%s cards=%s", institution_code, deleted_banks, deleted_cards)
         return DisconnectResponse(
             message=f"연결이 해제되었습니다. (은행 {deleted_banks}건, 카드 {deleted_cards}건 삭제)",
             deleted_bank_accounts=deleted_banks,
@@ -475,14 +577,18 @@ class FinanceAPI:
         response_model=SyncResponse,
         status_code=status.HTTP_200_OK,
         summary="기관 재동기화",
-        description="해당 기관의 Codef API를 다시 호출하여 계좌/카드 정보를 가져와 Upsert합니다.",
+        description=(
+            "DB의 connected_id를 사용해 Codef API를 호출하여 최신 계좌/카드 정보를 Upsert합니다. "
+            "추가 입력(생년월일 등)이 필요한 기관에 login_data 없이 호출하면 428로 응답합니다."
+        ),
     )
     async def resync_institution(
         self,
         institution_code: str,
         body: ResyncRequest,
     ) -> SyncResponse:
-        """기관 재동기화 API (로그인 정보 필요)."""
+        """기관 재동기화 API — connected_id 기반 데이터 갱신."""
+        # 기관 유형 판별
         org_type: Literal["bank", "card"] | None = None
         if institution_code in BANK_MAPPING:
             org_type = "bank"
@@ -495,21 +601,126 @@ class FinanceAPI:
                 detail=f"알 수 없는 기관 코드입니다: {institution_code}",
             )
 
-        try:
-            decrypted_login_data = self._decrypt_login_data(dict(body.login_data))
-        except ValueError as exc:
+        # connected_id 필수 확인
+        connected_id = await self._get_connected_id()
+        if not connected_id:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=f"복호화 오류: {exc.args[0]} 필드 처리 실패",
-            ) from exc
+                status_code=status.HTTP_412_PRECONDITION_FAILED,
+                detail="아직 등록된 Codef 계정이 없습니다. 먼저 기관을 연결해 주세요.",
+            )
 
+        # 추가 입력 필드 필요 여부 검사
+        if org_type == "bank":
+            extra_fields = self._BANK_EXTRA_FIELDS.get(institution_code, [])
+        else:
+            # CARD_PASSWORD_REQUIRED_CODES는 DB에 저장된 자격증명으로 자동 처리
+            extra_fields = (
+                []
+                if institution_code in CARD_PASSWORD_REQUIRED_CODES
+                else self._CARD_EXTRA_FIELDS.get(institution_code, [])
+            )
+
+        if extra_fields and not body.login_data:
+            raise HTTPException(
+                status_code=status.HTTP_428_PRECONDITION_REQUIRED,
+                detail={
+                    "requires_input": True,
+                    "fields": [f.model_dump() for f in extra_fields],
+                    "message": "추가 정보 입력이 필요합니다.",
+                },
+            )
+
+        # login_data가 제공된 경우 RSA 복호화
+        decrypted_login_data: dict[str, Any] = {}
+        if body.login_data:
+            try:
+                decrypted_login_data = self._decrypt_login_data(dict(body.login_data))
+            except ValueError as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=f"복호화 오류: {exc.args[0]} 필드 처리 실패",
+                ) from exc
+
+        # 카드 비밀번호 필수 카드사는 DB에서 저장된 자격증명 복원
+        if org_type == "card" and institution_code in CARD_PASSWORD_REQUIRED_CODES:
+            if not decrypted_login_data.get("cardNo") or not decrypted_login_data.get("cardPassword"):
+                card_repo = CardAccountRepository()
+                card_repo.set_factory(AsyncSessionFactory)
+                async with card_repo as repo:
+                    result = await repo._session.execute(
+                        select(CardAccount)
+                        .where(CardAccount.card_code == institution_code)
+                        .limit(1)
+                    )
+                    stored_card: CardAccount | None = result.scalars().first()
+
+                if stored_card and stored_card.encrypted_card_no:
+                    decrypted_login_data["cardNo"] = decrypt_sensitive_data(stored_card.encrypted_card_no)
+                if stored_card and stored_card.encrypted_card_password:
+                    decrypted_login_data["cardPassword"] = decrypt_sensitive_data(stored_card.encrypted_card_password)
+
+        # Codef API 호출 (connected_id 사용, 인증 재등록 없음)
         try:
-            if org_type == "bank":
-                raw_items = await self._fetch_bank_accounts(institution_code, decrypted_login_data)
-            else:
-                raw_items = await self._fetch_card_accounts(institution_code, decrypted_login_data)
+            client = self._create_codef_client()
+            try:
+                if org_type == "bank":
+                    res = await client.bank_account_list(
+                        organization=institution_code,
+                        connected_id=connected_id,
+                        birth_date=decrypted_login_data.get("birthDate"),
+                        withdraw_account_no=decrypted_login_data.get("withdrawAccountNo"),
+                        withdraw_account_password=decrypted_login_data.get("withdrawAccountPassword"),
+                    )
+                    if res.result.code != "CF-00000":
+                        raise ValueError(f"은행 계좌 조회 실패: {res.result.message}")
+
+                    _ACCOUNT_TYPE_MAP = {
+                        "res_deposit_trust": "예금",
+                        "res_foreign_currency": "외화",
+                        "res_fund": "펀드",
+                        "res_loan": "대출",
+                        "res_insurance": "보험",
+                    }
+                    raw_items: list[Any] = []
+                    if res.data:
+                        for attr, acct_type in _ACCOUNT_TYPE_MAP.items():
+                            val = getattr(res.data, attr, None)
+                            if not val:
+                                continue
+                            items = val if isinstance(val, list) else [val]
+                            for item in items:
+                                if hasattr(item, "res_account") and item.res_account:
+                                    raw_items.append(_MockBankRawAccount(
+                                        raw_account_no=item.res_account,
+                                        account_name=getattr(item, "res_account_name", None) or None,
+                                        account_type=acct_type,
+                                    ))
+                else:
+                    res = await client.card_account_list(
+                        organization=institution_code,
+                        connected_id=connected_id,
+                        birth_date=decrypted_login_data.get("birthDate"),
+                        card_no=decrypted_login_data.get("cardNo"),
+                        card_password=decrypted_login_data.get("cardPassword"),
+                    )
+                    if res.result.code != "CF-00000":
+                        raise ValueError(f"카드 목록 조회 실패: {res.result.message}")
+
+                    raw_items = []
+                    if res.data:
+                        items_c = res.data if isinstance(res.data, list) else [res.data]
+                        for item in items_c:
+                            if hasattr(item, "res_card_no") and item.res_card_no:
+                                raw_items.append(_MockCardRawAccount(
+                                    raw_card_no=item.res_card_no,
+                                    card_name=getattr(item, "res_card_name", None) or None,
+                                    card_image_url=getattr(item, "res_image_link", None) or None,
+                                ))
+            finally:
+                await client.close()
+
         except Exception as exc:
-            logger.error("재동기화 데이터 조회 실패: %s", exc)
+            logger.error("재동기화 데이터 조회 실패 — code=%s error=%s", institution_code, exc)
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail=f"금융기관 데이터 조회 실패: {exc}",
@@ -520,13 +731,13 @@ class FinanceAPI:
                 org_type, institution_code, raw_items, decrypted_login_data
             )
         except Exception as exc:
-            logger.error("재동기화 저장 실패: %s", exc)
+            logger.error("재동기화 저장 실패 — code=%s error=%s", institution_code, exc)
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"저장 실패: {exc}",
             ) from exc
 
-        logger.info("재동기화 완료: code=%s org_type=%s synced=%s", institution_code, org_type, synced_count)
+        logger.info("재동기화 완료 — code=%s org_type=%s synced=%s", institution_code, org_type, synced_count)
         return SyncResponse(
             org_type=org_type,
             company_code=institution_code,
@@ -541,7 +752,7 @@ class FinanceAPI:
         response_model=None,
     )
     async def sync_finance_data(self, body: SyncRequest) -> StreamingResponse:
-        """마이데이터 동기화 API (SSE). (RSA 복호화 로직 포함 및 진행상황 스트리밍 반환)"""
+        """마이데이터 동기화 API (SSE). connected_id 라이프사이클 포함."""
         async def _stream() -> AsyncGenerator[str, None]:
             # ── Step 1: RSA 복호화 ──────────────────────────────
             yield self._yield_sse_status({"step": "decrypting", "message": "비밀번호 복호화 중..."})
@@ -558,11 +769,18 @@ class FinanceAPI:
             # ── Step 2: 금융기관 데이터 조회 ─────────────────────
             yield self._yield_sse_status({"step": "fetching", "message": "금융기관 데이터 조회 중..."})
 
+            # DB에서 기존 connected_id 조회 (있으면 Add, 없으면 Create)
+            existing_connected_id = await self._get_connected_id()
+
             try:
                 if body.org_type == "bank":
-                    raw_items = await self._fetch_bank_accounts(body.company_code, decrypted_login_data)
+                    raw_items, new_connected_id = await self._fetch_bank_accounts(
+                        body.company_code, decrypted_login_data, existing_connected_id
+                    )
                 else:
-                    raw_items = await self._fetch_card_accounts(body.company_code, decrypted_login_data)
+                    raw_items, new_connected_id = await self._fetch_card_accounts(
+                        body.company_code, decrypted_login_data, existing_connected_id
+                    )
             except Exception as exc:
                 logger.error("데이터 조회 실패: %s", exc)
                 yield self._yield_sse_status({"step": "error", "message": f"데이터 조회 실패: {exc}"})
@@ -574,11 +792,17 @@ class FinanceAPI:
                 "count": len(raw_items),
             })
 
-            # ── Step 3: DB 저장 ───────────────────────────────────
+            # ── Step 3: DB 저장 (connected_id 포함) ──────────────
             yield self._yield_sse_status({"step": "saving", "message": "데이터 저장 중..."})
 
             try:
                 synced_count = await self._save_items(body.org_type, body.company_code, raw_items, decrypted_login_data)
+
+                # connected_id가 변경됐거나 새로 발급된 경우 DB 저장
+                if new_connected_id and new_connected_id != existing_connected_id:
+                    await self._persist_connected_id(new_connected_id)
+                    logger.info("connected_id 저장 완료: %s", new_connected_id)
+
             except Exception as exc:
                 logger.error("데이터 저장 실패: %s", exc)
                 yield self._yield_sse_status({"step": "error", "message": f"저장 실패: {exc}"})
@@ -605,4 +829,3 @@ class FinanceAPI:
 
 def setup(fastapi_app: FastAPI) -> None:
     fastapi_app.include_router(router)
-
