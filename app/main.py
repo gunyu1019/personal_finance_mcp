@@ -55,7 +55,7 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def fastapi_lifespan(fastapi_app: FastAPI):
     # 0. RSA 키 쌍 생성 트리거 (Lazy loading 방지)
-    import app.core.crypto  # noqa: F401
+    import app.core.security  # noqa: F401
 
     logger.info("ImportSupporter를 통한 API 및 Model 동적 로딩 시작")
 

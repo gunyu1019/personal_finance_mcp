@@ -10,7 +10,7 @@ from fastapi import APIRouter, FastAPI
 from fastapi.responses import JSONResponse
 from fastapi_restful.cbv import cbv
 
-from app.core.crypto import get_public_key_pem
+from app.core.security import get_public_key_pem
 
 router = APIRouter(prefix="/api/crypto", tags=["crypto"])
 

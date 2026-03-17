@@ -11,10 +11,12 @@ from fastapi_restful.cbv import cbv
 from sqlalchemy import func, select
 
 from app.api.auth import get_current_admin
-from app.core.crypto import decrypt_data, encrypt_sensitive_data, decrypt_sensitive_data
 from app.core.config import settings, BANK_MAPPING, CARD_MAPPING, CARD_PASSWORD_REQUIRED_CODES
 from app.core.database import AsyncSessionFactory
-from app.core.security import hash_data, mask_account_no, mask_card_no
+from app.core.security import (
+    decrypt_data, encrypt_sensitive_data, decrypt_sensitive_data,
+    hash_data, mask_account_no, mask_card_no, encrypt_card_number_conditionally
+)
 from app.dto.bank_account_dto import BankAccountUpsertData
 from app.dto.card_account_dto import CardAccountUpsertData
 from app.model.bank_account import BankAccount
@@ -370,7 +372,7 @@ class FinanceAPI:
                         card_code=company_code,
                         hashed_card_no=hash_data(raw_no_c, salt),
                         masked_card_no=mask_card_no(raw_no_c),
-                        encrypted_card_no=encrypt_sensitive_data(raw_no_c),
+                        encrypted_card_no=encrypt_card_number_conditionally(raw_no_c),
                         encrypted_card_password=encrypted_password,
                         card_name=getattr(raw, "card_name", None),
                         card_image_url=getattr(raw, "card_image_url", None),
