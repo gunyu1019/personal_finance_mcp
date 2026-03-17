@@ -657,7 +657,7 @@ class FinanceAPI:
                     stored_card: CardAccount | None = result.scalars().first()
 
                 if stored_card and stored_card.encrypted_card_no:
-                    decrypted_login_data["cardNo"] = decrypt_sensitive_data(stored_card.encrypted_card_no)
+                    decrypted_login_data["cardNo"] = stored_card.encrypted_card_no
                 if stored_card and stored_card.encrypted_card_password:
                     decrypted_login_data["cardPassword"] = decrypt_sensitive_data(stored_card.encrypted_card_password)
 
