@@ -45,7 +45,7 @@ $ source venv/bin/activate
 $ pip install -r requirements.txt
 
 # Setup the configuration file
-$ cp config.yaml.example config.yaml
+$ cp .env.example .env
 ```
 
 
