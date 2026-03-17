@@ -12,6 +12,8 @@ from sqlalchemy import func, select
 
 from app.api.auth import get_current_admin
 from app.core.config import settings, BANK_MAPPING, CARD_MAPPING, CARD_PASSWORD_REQUIRED_CODES
+from app.service.codef.bank.company import BankCompany
+from app.service.codef.card.company import CardCompany
 from app.core.database import AsyncSessionFactory
 from app.core.security import (
     decrypt_data, encrypt_sensitive_data, decrypt_sensitive_data,
@@ -79,6 +81,10 @@ class FinanceAPI:
     # 멤버 변수: 관리자 인증 검증 (하위 모든 라우터에 자동 적용됨)
     admin_sub: str = Depends(get_current_admin)
 
+    def __init__(self):
+        self._cached_connected_id: str | None = None
+        self._cached_hash_salt: str | None = None
+
     # ─────────────────────────────────────────────────────────────
     # 클래스 기저 설정 (폼 필드 및 민감 필드 등 상수)
     # ─────────────────────────────────────────────────────────────
@@ -93,38 +99,57 @@ class FinanceAPI:
     _FIELD_CARD_NO: ClassVar[FormField] = FormField(name="cardNo", label="카드번호", type="text")
     _FIELD_CARD_PASSWORD: ClassVar[FormField] = FormField(name="cardPassword", label="카드비밀번호", type="password")
 
-    _BANK_EXTRA_FIELDS: ClassVar[dict[str, list[FormField]]] = {
-        "0023": [_FIELD_BIRTH_DATE],
-        "0027": [_FIELD_BIRTH_DATE],
-        "0031": [_FIELD_BIRTH_DATE, _FIELD_WITHDRAW_ACCOUNT_NO, _FIELD_WITHDRAW_ACCOUNT_PASSWORD],
-        "0088": [_FIELD_BIRTH_DATE],
-        "0089": [_FIELD_BIRTH_DATE],
-    }
-
-    _CARD_EXTRA_FIELDS: ClassVar[dict[str, list[FormField]]] = {
-        "0301": [_FIELD_CARD_NO, _FIELD_CARD_PASSWORD],
-        "0302": [_FIELD_CARD_NO, _FIELD_CARD_PASSWORD],
-        "0311": [_FIELD_BIRTH_DATE],
-    }
+    # 기존 하드코딩된 필드 매핑 제거 - Enum 기반으로 대체
+    # _BANK_EXTRA_FIELDS와 _CARD_EXTRA_FIELDS는 이제 BankCompany, CardCompany enum의 
+    # requires_* 메서드들로 대체됨 (타입 안전성 및 유지보수성 향상)
 
     _SENSITIVE_FIELDS: ClassVar[tuple[str, ...]] = ("password", "cardPassword", "withdrawAccountPassword")
+    
+    _ACCOUNT_TYPE_MAP: ClassVar[dict[str, str]] = {
+        "res_deposit_trust": "예금",
+        "res_foreign_currency": "외화",
+        "res_fund": "펀드",
+        "res_loan": "대출",
+        "res_insurance": "보험",
+    }
 
     # ─────────────────────────────────────────────────────────────
     # 내부 프라이빗 유틸리티 메서드
     # ─────────────────────────────────────────────────────────────
 
     def _generate_form_fields(self, org_type: str, company_code: str) -> list[FormField]:
-        """조기분기 룰에 따라 동적 폼 필드를 생성합니다."""
+        """
+        조기분기 룰에 따라 동적 폼 필드를 생성합니다.
+        """
+        extra_fields: list[FormField] = []
+        
         if org_type == "bank":
-            extra = self._BANK_EXTRA_FIELDS.get(company_code, [])
+            bank_company = BankCompany.from_code(company_code)
+            if bank_company is not None:
+                if bank_company.requires_birth_date():
+                    extra_fields.append(self._FIELD_BIRTH_DATE)
+                if bank_company.requires_withdraw_account():
+                    extra_fields.extend([
+                        self._FIELD_WITHDRAW_ACCOUNT_NO,
+                        self._FIELD_WITHDRAW_ACCOUNT_PASSWORD
+                    ])
         elif org_type == "card":
-            extra = self._CARD_EXTRA_FIELDS.get(company_code, [])
+            card_company = CardCompany.from_code(company_code)
+            if card_company is not None:
+                if card_company.requires_card_info():
+                    extra_fields.extend([
+                        self._FIELD_CARD_NO,
+                        self._FIELD_CARD_PASSWORD
+                    ])
+                if card_company.requires_birth_date():
+                    extra_fields.append(self._FIELD_BIRTH_DATE)
         else:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail=f"지원하지 않는 org_type: {org_type!r}. 'bank' 또는 'card' 만 허용합니다.",
             )
-        return self._BASE_FIELDS + extra
+            
+        return self._BASE_FIELDS + extra_fields
 
     def _yield_sse_status(self, data: dict) -> str:
         """SSE 통신용 메시지 청크를 포맷팅합니다."""
@@ -143,13 +168,19 @@ class FinanceAPI:
         return decrypted
 
     async def _get_hash_salt(self) -> str:
-        """DB에 저장된 해시용 소금값을 가져옵니다."""
+        """
+        DB에 저장된 해시용 소금값을 가져옵니다.
+        """
+        if self._cached_hash_salt is not None:
+            return self._cached_hash_salt
+            
         system_repo = SystemRepository()
         system_repo.set_factory(AsyncSessionFactory)
         async with system_repo as repo:
             config = await repo.get_or_create_config()
             await repo._session.commit()
-            return config.hash_salt
+            self._cached_hash_salt = config.hash_salt
+            return self._cached_hash_salt
 
     def _create_codef_client(self) -> CodefClient:
         """설정 기반 CodefClient 인스턴스를 생성합니다."""
@@ -165,11 +196,17 @@ class FinanceAPI:
         )
 
     async def _get_connected_id(self) -> Optional[str]:
-        """DB에서 codef_connected_id를 조회합니다."""
+        """
+        DB에서 codef_connected_id를 조회합니다.
+        """
+        if self._cached_connected_id is not None:
+            return self._cached_connected_id
+            
         system_repo = SystemRepository()
         system_repo.set_factory(AsyncSessionFactory)
         async with system_repo as repo:
-            return await repo.get_connected_id()
+            self._cached_connected_id = await repo.get_connected_id()
+            return self._cached_connected_id
 
     async def _persist_connected_id(self, connected_id: str) -> None:
         """codef_connected_id를 DB에 저장(또는 갱신)합니다."""
@@ -229,27 +266,20 @@ class FinanceAPI:
             if res.result.code != "CF-00000":
                 raise ValueError(f"은행 계좌 조회 실패: {res.result.message}")
 
-            _ACCOUNT_TYPE_MAP = {
-                "res_deposit_trust": "예금",
-                "res_foreign_currency": "외화",
-                "res_fund": "펀드",
-                "res_loan": "대출",
-                "res_insurance": "보험",
-            }
             out: list[_MockBankRawAccount] = []
             if res.data:
-                for attr, acct_type in _ACCOUNT_TYPE_MAP.items():
-                    val = getattr(res.data, attr, None)
-                    if not val:
-                        continue
-                    items = val if isinstance(val, list) else [val]
-                    for item in items:
-                        if hasattr(item, "res_account") and item.res_account:
-                            out.append(_MockBankRawAccount(
-                                raw_account_no=item.res_account,
-                                account_name=getattr(item, "res_account_name", None) or None,
-                                account_type=acct_type,
-                            ))
+                out = [
+                    _MockBankRawAccount(
+                        raw_account_no=item.res_account,
+                        account_name=getattr(item, "res_account_name", None) or None,
+                        account_type=acct_type,
+                    )
+                    for attr, acct_type in self._ACCOUNT_TYPE_MAP.items()
+                    for val in [getattr(res.data, attr, None)]
+                    if val  # None 체크를 리스트 컴프리헨션 조건으로 이동
+                    for item in (val if isinstance(val, list) else [val])
+                    if hasattr(item, "res_account") and item.res_account
+                ]
             return out, connected_id
         finally:
             await client.close()
@@ -479,7 +509,7 @@ class FinanceAPI:
                 code = row[0]
                 banks.append(InstitutionItem(
                     code=code,
-                    name=BANK_MAPPING.get(code, f"은행({code})"),
+                    name=BankCompany.get_korean_name(code),
                     account_count=row[1],
                 ))
 
@@ -492,7 +522,7 @@ class FinanceAPI:
                 code = row[0]
                 cards.append(InstitutionItem(
                     code=code,
-                    name=CARD_MAPPING.get(code, f"카드사({code})"),
+                    name=CardCompany.get_korean_name(code),
                     account_count=row[1],
                 ))
 
@@ -510,10 +540,13 @@ class FinanceAPI:
     )
     async def disconnect_institution(self, institution_code: str) -> DisconnectResponse:
         """기관 연결 해제 API — Codef Unlink 후 로컬 DB 삭제."""
-        # 기관 유형 판별
-        if institution_code in BANK_MAPPING:
+        # 기관 유형 판별 (Enum 기반으로 더 안전하게)
+        bank_company = BankCompany.from_code(institution_code)
+        card_company = CardCompany.from_code(institution_code)
+        
+        if bank_company is not None:
             business_type: Literal["BK", "CD"] = "BK"
-        elif institution_code in CARD_MAPPING:
+        elif card_company is not None:
             business_type = "CD"
         else:
             raise HTTPException(
@@ -591,11 +624,14 @@ class FinanceAPI:
         body: ResyncRequest,
     ) -> SyncResponse:
         """기관 재동기화 API — connected_id 기반 데이터 갱신."""
-        # 기관 유형 판별
+        # 기관 유형 판별 (Enum 기반으로 더 안전하게)
+        bank_company = BankCompany.from_code(institution_code)
+        card_company = CardCompany.from_code(institution_code)
+        
         org_type: Literal["bank", "card"] | None = None
-        if institution_code in BANK_MAPPING:
+        if bank_company is not None:
             org_type = "bank"
-        elif institution_code in CARD_MAPPING:
+        elif card_company is not None:
             org_type = "card"
 
         if org_type is None:
@@ -612,16 +648,20 @@ class FinanceAPI:
                 detail="아직 등록된 Codef 계정이 없습니다. 먼저 기관을 연결해 주세요.",
             )
 
-        # 추가 입력 필드 필요 여부 검사
+        # 추가 입력 필드 필요 여부 검사 (Enum 기반으로 개선)
+        extra_fields: list = []
         if org_type == "bank":
-            extra_fields = self._BANK_EXTRA_FIELDS.get(institution_code, [])
+            bank_company = BankCompany.from_code(institution_code)
+            if bank_company is not None and bank_company.is_special_bank():
+                extra_fields.append("requires_extra_info")
         else:
-            # CARD_PASSWORD_REQUIRED_CODES는 DB에 저장된 자격증명으로 자동 처리
-            extra_fields = (
-                []
-                if institution_code in CARD_PASSWORD_REQUIRED_CODES
-                else self._CARD_EXTRA_FIELDS.get(institution_code, [])
-            )
+            card_company = CardCompany.from_code(institution_code)
+            if card_company is not None:
+                # 비밀번호가 필요한 카드사는 DB에 저장된 자격증명으로 자동 처리
+                if not card_company.requires_password() and (
+                    card_company.requires_card_info() or card_company.requires_birth_date()
+                ):
+                    extra_fields.append("requires_extra_info")
 
         if extra_fields and not body.login_data:
             raise HTTPException(
@@ -677,27 +717,20 @@ class FinanceAPI:
                     if res.result.code != "CF-00000":
                         raise ValueError(f"은행 계좌 조회 실패: {res.result.message}")
 
-                    _ACCOUNT_TYPE_MAP = {
-                        "res_deposit_trust": "예금",
-                        "res_foreign_currency": "외화",
-                        "res_fund": "펀드",
-                        "res_loan": "대출",
-                        "res_insurance": "보험",
-                    }
                     raw_items: list[Any] = []
                     if res.data:
-                        for attr, acct_type in _ACCOUNT_TYPE_MAP.items():
-                            val = getattr(res.data, attr, None)
-                            if not val:
-                                continue
-                            items = val if isinstance(val, list) else [val]
-                            for item in items:
-                                if hasattr(item, "res_account") and item.res_account:
-                                    raw_items.append(_MockBankRawAccount(
-                                        raw_account_no=item.res_account,
-                                        account_name=getattr(item, "res_account_name", None) or None,
-                                        account_type=acct_type,
-                                    ))
+                        raw_items = [
+                            _MockBankRawAccount(
+                                raw_account_no=item.res_account,
+                                account_name=getattr(item, "res_account_name", None) or None,
+                                account_type=acct_type,
+                            )
+                            for attr, acct_type in self._ACCOUNT_TYPE_MAP.items()
+                            for val in [getattr(res.data, attr, None)]
+                            if val  # None 체크를 리스트 컴프리헨션 조건으로 이동
+                            for item in (val if isinstance(val, list) else [val])
+                            if hasattr(item, "res_account") and item.res_account
+                        ]
                 else:
                     res = await client.card_account_list(
                         organization=institution_code,

@@ -13,16 +13,13 @@ import logging
 from typing import TYPE_CHECKING, Optional
 import datetime
 
-from sqlalchemy import select
 from fastmcp.tools import tool
 
-from app.core.config import settings, CARD_MAPPING, CARD_PASSWORD_REQUIRED_CODES
+from app.core.config import settings
+from app.service.codef.card.company import CardCompany
 from app.core.security import decrypt_sensitive_data
-from app.core.database import AsyncSessionFactory
 from app.core.mcp_component import MCPComponent
 from app.model.card_account import CardAccount
-from app.repository.card_account_repository import CardAccountRepository
-from app.repository.system_repository import SystemRepository
 from app.schema.mcp_responses import (
     CardAccountListResponse,
     CardTransactionListResponse,
@@ -41,41 +38,72 @@ logger = logging.getLogger(__name__)
 
 
 class CardTool(MCPComponent):
-    # ─────────────────────────────────────────────────────────────
-    # 내부 헬퍼: DB 에서 is_mcp_enabled == True 인 카드만 조회
-    # ─────────────────────────────────────────────────────────────
+    """
+    카드 관련 MCP Tool.
+    
+    의존성 주입 패턴을 적용하여 Repository와 외부 서비스 클라이언트를 주입받아 사용합니다.
+    이를 통해 결합도를 낮추고 테스트 용이성을 향상시킵니다.
+    """
 
-    @staticmethod
-    async def _get_enabled_cards() -> list[CardAccount]:
-        """is_mcp_enabled == True 인 카드 목록을 반환합니다."""
+    def __init__(self, card_repo_factory=None, system_repo_factory=None, codef_client_factory=None):
+        """
+        의존성 주입을 위한 생성자.
+        
+        Args:
+            card_repo_factory: CardAccountRepository 생성 팩토리
+            system_repo_factory: SystemRepository 생성 팩토리  
+            codef_client_factory: CodefClient 생성 팩토리
+        """
+        # DI 컨테이너에서 의존성을 주입받음 (기본값은 런타임에서 설정)
+        self._card_repo_factory = card_repo_factory
+        self._system_repo_factory = system_repo_factory
+        self._codef_client_factory = codef_client_factory
+
+    async def _get_enabled_cards(self) -> list[CardAccount]:
+        """
+        MCP에 노출 허용된 카드 목록을 반환합니다.
+        
+        DI 적용: 주입받은 Repository 팩토리를 사용하여 결합도 감소
+        """
+        if self._card_repo_factory:
+            async with self._card_repo_factory() as repo:
+                return await repo.get_enabled_accounts()
+        
+        # 기본 구현 (하위 호환성)
+        from app.core.database import AsyncSessionFactory
+        from app.repository.card_account_repository import CardAccountRepository
+        
         repo = CardAccountRepository()
         repo.set_factory(AsyncSessionFactory)
         async with repo:
-            result = await repo._session.execute(
-                select(CardAccount).where(CardAccount.is_mcp_enabled.is_(True))
-            )
-            return result.scalars().all()
+            return await repo.get_enabled_accounts()
 
-    @staticmethod
-    async def _get_card_by_masked_no(masked_card_no: str) -> CardAccount | None:
-        """마스킹된 카드번호로 단건 조회합니다."""
+    async def _get_card_by_masked_no(self, masked_card_no: str) -> CardAccount | None:
+        """
+        마스킹된 카드번호로 단건 조회합니다.
+        
+        DI 적용: 주입받은 Repository 팩토리를 사용하여 결합도 감소
+        """
+        if self._card_repo_factory:
+            async with self._card_repo_factory() as repo:
+                return await repo.get_by_masked_card_no(masked_card_no)
+        
+        # 기본 구현 (하위 호환성)
+        from app.core.database import AsyncSessionFactory
+        from app.repository.card_account_repository import CardAccountRepository
+        
         repo = CardAccountRepository()
         repo.set_factory(AsyncSessionFactory)
         async with repo:
-            result = await repo._session.execute(
-                select(CardAccount).where(
-                    CardAccount.masked_card_no == masked_card_no
-                )
-            )
-            return result.scalars().first()
+            return await repo.get_by_masked_card_no(masked_card_no)
 
 
     # ─────────────────────────────────────────────────────────────
     # CODEF 카드 승인내역 조회 (실제 연동)
     # ─────────────────────────────────────────────────────────────
 
-    @staticmethod
     async def _fetch_real_card_transactions(
+        self,
         company_code: str,
         card: CardAccount,
         start_date: str,
@@ -84,23 +112,28 @@ class CardTool(MCPComponent):
         """
         CODEF API를 호출하여 실제 카드 승인내역을 조회합니다.
 
+        DI 적용: 주입받은 SystemRepository와 CodefClient 팩토리를 사용하여 
+        외부 의존성과의 결합도를 낮춤으로써 테스트 용이성 및 유지보수성 향상
+
         - DB의 codef_connected_id를 connected_id로 사용합니다.
         - encrypted_card_no를 복호화한 원본 번호를 card_no로 전달합니다.
-        - CARD_PASSWORD_REQUIRED_CODES 카드사는 encrypted_card_password도 복호화하여 전달합니다.
+        - 비밀번호 필수 카드사는 encrypted_card_password도 복호화하여 전달합니다.
         - 복호화된 민감 정보는 API 호출 인자로만 사용되며 로그·반환값에 포함되지 않습니다.
         """
-        if settings.CODEF_MODE == "live":
-            base_url = API_DOMAIN
-        elif settings.CODEF_MODE == "sandbox":
-            base_url = SANDBOX_DOMAIN
+        # ── connected_id 조회 (DI 적용) ───────────────────────────────────
+        connected_id = None
+        if self._system_repo_factory:
+            async with self._system_repo_factory() as system_repo:
+                connected_id = await system_repo.get_connected_id()
         else:
-            base_url = DEMO_DOMAIN
-
-        # ── connected_id 조회 ───────────────────────────────────
-        system_repo = SystemRepository()
-        system_repo.set_factory(AsyncSessionFactory)
-        async with system_repo as repo:
-            connected_id = await repo.get_connected_id()
+            # 기본 구현 (하위 호환성)
+            from app.core.database import AsyncSessionFactory
+            from app.repository.system_repository import SystemRepository
+            
+            system_repo = SystemRepository()
+            system_repo.set_factory(AsyncSessionFactory)
+            async with system_repo as repo:
+                connected_id = await repo.get_connected_id()
 
         if not connected_id:
             raise ValueError(
@@ -116,20 +149,58 @@ class CardTool(MCPComponent):
 
         # ── 비밀번호 필수 카드사: 저장된 카드 비밀번호 복호화 ────
         real_card_password: str | None = None
-        if company_code in CARD_PASSWORD_REQUIRED_CODES and card.encrypted_card_password:
+        card_company = CardCompany.from_code(company_code)
+        if card_company and card_company.requires_password() and card.encrypted_card_password:
             try:
                 real_card_password = decrypt_sensitive_data(card.encrypted_card_password)
             except Exception as e:
                 logger.error("카드 비밀번호 복호화 실패 — card_code=%s", company_code)
                 raise ValueError("카드 비밀번호 복호화에 실패했습니다.") from e
 
-        client = CodefClient(
-            public_key_pem=settings.CODEF_PUBLIC_KEY,
-            client_id=settings.CODEF_CLIENT_ID,
-            client_secret=settings.CODEF_CLIENT_SECRET,
-            base_url=base_url,
-        )
+        # ── CODEF API 호출 (DI 적용) ────────────────────────────────────
+        if self._codef_client_factory:
+            async with self._codef_client_factory() as client:
+                return await self._execute_card_api_call(
+                    client, company_code, connected_id, start_date, end_date, 
+                    real_card_no, real_card_password
+                )
+        else:
+            # 기본 구현 (하위 호환성)
+            if settings.CODEF_MODE == "live":
+                base_url = API_DOMAIN
+            elif settings.CODEF_MODE == "sandbox":
+                base_url = SANDBOX_DOMAIN
+            else:
+                base_url = DEMO_DOMAIN
 
+            client = CodefClient(
+                public_key_pem=settings.CODEF_PUBLIC_KEY,
+                client_id=settings.CODEF_CLIENT_ID,
+                client_secret=settings.CODEF_CLIENT_SECRET,
+                base_url=base_url,
+            )
+
+            try:
+                return await self._execute_card_api_call(
+                    client, company_code, connected_id, start_date, end_date, 
+                    real_card_no, real_card_password
+                )
+            finally:
+                await client.close()
+
+    async def _execute_card_api_call(
+        self,
+        client: CodefClient,
+        company_code: str,
+        connected_id: str,
+        start_date: str,
+        end_date: str,
+        real_card_no: str,
+        real_card_password: str | None,
+    ) -> list[CardTransactionRecord]:
+        """
+        실제 CODEF API 호출 로직을 분리하여 중복 제거 및 테스트 용이성 향상
+        """
         try:
             res = await client.card_approval_list(
                 organization=company_code,
@@ -146,8 +217,8 @@ class CardTool(MCPComponent):
             transactions: list[CardTransactionRecord] = []
             if res.data:
                 data_list = res.data if isinstance(res.data, list) else [res.data]
-                for item in data_list:
-                    transactions.append(CardTransactionRecord(
+                transactions = [
+                    CardTransactionRecord(
                         date=item.res_used_date,
                         time=item.res_used_time or "",
                         merchant=item.res_member_store_name or "",
@@ -155,13 +226,13 @@ class CardTool(MCPComponent):
                         currency=item.res_account_currency,
                         status="취소" if item.res_cancel_yn == "1" else "승인",
                         installment=item.res_installment_month or "일시불",
-                    ))
+                    )
+                    for item in data_list
+                ]
             return transactions
         except Exception as e:
             logger.error("[_fetch_real_card_transactions] 조회 실패 — card_code=%s", company_code)
             raise
-        finally:
-            await client.close()
 
     @tool()
     async def get_enabled_cards(self) -> CardAccountListResponse:
@@ -178,8 +249,8 @@ class CardTool(MCPComponent):
         card_infos = []
 
         for card in cards:
-            # 카드사명 매핑 (코드 → 한글명)
-            card_company = CARD_MAPPING.get(card.card_code, f"카드사({card.card_code})")
+            # 카드사명 매핑 (Enum 기반으로 타입 안전하게)
+            card_company = CardCompany.get_korean_name(card.card_code)
 
             card_infos.append(CardAccountInfo(
                 card_company=card_company,
@@ -235,8 +306,8 @@ class CardTool(MCPComponent):
                 end_date=end_date,
             )
 
-            # 카드 정보 구성
-            card_company = CARD_MAPPING.get(card.card_code, f"카드사({card.card_code})")
+            # 카드 정보 구성 (Enum 기반으로 타입 안전하게)
+            card_company = CardCompany.get_korean_name(card.card_code)
             card_info = CardAccountInfo(
                 card_company=card_company,
                 company_code=card.card_code,
@@ -269,9 +340,24 @@ def setup(mcp: FastMCP) -> None:
     """
     FastMCP 인스턴스를 주입받아 카드 관련 Tool 을 등록합니다.
 
+    의존성 주입 패턴을 적용하여 Repository와 CodefClient 팩토리를 주입합니다.
+    이를 통해 결합도를 낮추고 테스트 용이성을 향상시킵니다.
+
     ImportSupporter(mcp).load_modules("app.mcp") 에 의해 자동 호출됩니다.
 
     Args:
         mcp: app/core/mcp_middleware.py 에서 생성된 FastMCP 인스턴스
     """
-    CardTool.register_mcp(mcp)
+    from app.core.mcp_deps import (
+        get_card_account_repository,
+        get_system_repository, 
+        get_codef_client
+    )
+
+    # DI 컨테이너 설정: 의존성 팩토리들을 주입하여 CardTool 인스턴스 생성
+    CardTool.register_mcp(
+        mcp,
+        card_repo_factory=get_card_account_repository,
+        system_repo_factory=get_system_repository,
+        codef_client_factory=get_codef_client
+    )

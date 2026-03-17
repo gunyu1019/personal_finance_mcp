@@ -81,19 +81,68 @@ class CardAccountRepository(BaseRepository):
         """
         복수 건 upsert.
 
-        각 레코드를 순서대로 upsert() 하여 처리합니다.
-        단일 세션 내에서 실행되므로 호출 전 세션이 활성 상태여야 합니다.
-
         Args:
             records: CardAccountUpsertData 리스트
 
         Returns:
             list[CardAccount]: upsert 결과 ORM 객체 리스트
         """
+        if not records:
+            return []
+
+        if self._session is NotImplemented or self._session is None:
+            raise RuntimeError(
+                "DB 세션이 초기화되지 않았습니다. "
+                "async with CardAccountRepository() as repo: 또는 "
+                "의존성 주입을 통해 사용하세요."
+            )
+
+        hashed_card_nos = [record.hashed_card_no for record in records]
+        result = await self._session.execute(
+            select(CardAccount).where(CardAccount.hashed_card_no.in_(hashed_card_nos))
+        )
+        existing_cards = {card.hashed_card_no: card for card in result.scalars().all()}
+
         results: list[CardAccount] = []
+        new_cards: list[CardAccount] = []
+
         for record in records:
-            card = await self.upsert(record)
-            results.append(card)
+            existing_card = existing_cards.get(record.hashed_card_no)
+            
+            if existing_card is None:
+                # 신규 카드 생성
+                new_card = CardAccount(
+                    card_code=record.card_code,
+                    hashed_card_no=record.hashed_card_no,
+                    masked_card_no=record.masked_card_no,
+                    encrypted_card_no=record.encrypted_card_no,
+                    encrypted_card_password=record.encrypted_card_password,
+                    card_name=record.card_name,
+                    card_image_url=record.card_image_url,
+                    is_mcp_enabled=True,
+                )
+                self._session.add(new_card)
+                new_cards.append(new_card)
+                results.append(new_card)
+            else:
+                # 기존 카드 업데이트 (is_mcp_enabled 상태는 유지)
+                existing_card.card_code = record.card_code
+                existing_card.masked_card_no = record.masked_card_no
+                existing_card.card_name = record.card_name
+                existing_card.card_image_url = record.card_image_url
+                if record.encrypted_card_no is not None:
+                    existing_card.encrypted_card_no = record.encrypted_card_no
+                if record.encrypted_card_password is not None:
+                    existing_card.encrypted_card_password = record.encrypted_card_password
+                results.append(existing_card)
+
+        await self._session.flush()
+        
+        # 신규 생성된 카드들의 ID 갱신
+        if new_cards:
+            for card in new_cards:
+                await self._session.refresh(card)
+
         return results
 
     async def update_mcp_enabled(
@@ -153,3 +202,50 @@ class CardAccountRepository(BaseRepository):
         result = await self._session.execute(delete(CardAccount).where(CardAccount.card_code == card_code))
         await self._session.flush()
         return result.rowcount or 0
+
+    async def get_enabled_accounts(self) -> list[CardAccount]:
+        """
+        MCP 에이전트에 노출 가능한 카드 목록을 조회합니다.
+        
+        is_mcp_enabled가 True인 카드만 반환합니다.
+        
+        Returns:
+            list[CardAccount]: MCP 노출 허용된 카드 목록
+            
+        Raises:
+            RuntimeError: 세션이 초기화되지 않은 경우
+        """
+        if self._session is NotImplemented or self._session is None:
+            raise RuntimeError(
+                "DB 세션이 초기화되지 않았습니다. "
+                "async with CardAccountRepository() as repo: 형식으로 사용하세요."
+            )
+        
+        result = await self._session.execute(
+            select(CardAccount).where(CardAccount.is_mcp_enabled.is_(True))
+        )
+        return result.scalars().all()
+
+    async def get_by_masked_card_no(self, masked_card_no: str) -> CardAccount | None:
+        """
+        마스킹된 카드번호로 카드를 조회합니다.
+        
+        Args:
+            masked_card_no: 마스킹된 카드번호 (예: 1234-****-****-5678)
+            
+        Returns:
+            CardAccount | None: 해당하는 카드 객체 또는 None
+            
+        Raises:
+            RuntimeError: 세션이 초기화되지 않은 경우
+        """
+        if self._session is NotImplemented or self._session is None:
+            raise RuntimeError(
+                "DB 세션이 초기화되지 않았습니다. "
+                "async with CardAccountRepository() as repo: 형식으로 사용하세요."
+            )
+        
+        result = await self._session.execute(
+            select(CardAccount).where(CardAccount.masked_card_no == masked_card_no)
+        )
+        return result.scalars().first()

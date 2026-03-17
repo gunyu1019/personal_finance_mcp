@@ -78,19 +78,65 @@ class BankAccountRepository(BaseRepository):
         """
         복수 건 upsert.
 
-        각 레코드를 순서대로 upsert() 하여 처리합니다.
-        단일 세션 내에서 실행되므로 호출 전 세션이 활성 상태여야 합니다.
-
         Args:
             records: BankAccountUpsertData 리스트
 
         Returns:
             list[BankAccount]: upsert 결과 ORM 객체 리스트
         """
+        if not records:
+            return []
+
+        if self._session is NotImplemented or self._session is None:
+            raise RuntimeError(
+                "DB 세션이 초기화되지 않았습니다. "
+                "async with BankAccountRepository() as repo: 또는 "
+                "의존성 주입을 통해 사용하세요."
+            )
+
+        hashed_account_nos = [record.hashed_account_no for record in records]
+        result = await self._session.execute(
+            select(BankAccount).where(BankAccount.hashed_account_no.in_(hashed_account_nos))
+        )
+        existing_accounts = {account.hashed_account_no: account for account in result.scalars().all()}
+
         results: list[BankAccount] = []
+        new_accounts: list[BankAccount] = []
+
         for record in records:
-            account = await self.upsert(record)
-            results.append(account)
+            existing_account = existing_accounts.get(record.hashed_account_no)
+            
+            if existing_account is None:
+                # 신규 계좌 생성
+                new_account = BankAccount(
+                    bank_code=record.bank_code,
+                    hashed_account_no=record.hashed_account_no,
+                    masked_account_no=record.masked_account_no,
+                    encrypted_account_no=record.encrypted_account_no,
+                    account_name=record.account_name,
+                    account_type=record.account_type,
+                    is_mcp_enabled=True,
+                )
+                self._session.add(new_account)
+                new_accounts.append(new_account)
+                results.append(new_account)
+            else:
+                # 기존 계좌 업데이트 (is_mcp_enabled 상태는 유지)
+                existing_account.bank_code = record.bank_code
+                existing_account.masked_account_no = record.masked_account_no
+                existing_account.account_name = record.account_name
+                existing_account.account_type = record.account_type
+                if record.encrypted_account_no is not None:
+                    existing_account.encrypted_account_no = record.encrypted_account_no
+                results.append(existing_account)
+
+        await self._session.flush()
+        
+        # 신규 생성된 계좌들의 ID 갱신
+        if new_accounts:
+            for account in new_accounts:
+                await self._session.refresh(account)
+
         return results
 
     async def update_mcp_enabled(
@@ -150,3 +196,50 @@ class BankAccountRepository(BaseRepository):
         result = await self._session.execute(delete(BankAccount).where(BankAccount.bank_code == bank_code))
         await self._session.flush()
         return result.rowcount or 0
+
+    async def get_enabled_accounts(self) -> list[BankAccount]:
+        """
+        MCP 에이전트에 노출 가능한 계좌 목록을 조회합니다.
+        
+        is_mcp_enabled가 True인 계좌만 반환합니다.
+        
+        Returns:
+            list[BankAccount]: MCP 노출 허용된 계좌 목록
+            
+        Raises:
+            RuntimeError: 세션이 초기화되지 않은 경우
+        """
+        if self._session is NotImplemented or self._session is None:
+            raise RuntimeError(
+                "DB 세션이 초기화되지 않았습니다. "
+                "async with BankAccountRepository() as repo: 형식으로 사용하세요."
+            )
+        
+        result = await self._session.execute(
+            select(BankAccount).where(BankAccount.is_mcp_enabled.is_(True))
+        )
+        return result.scalars().all()
+
+    async def get_by_masked_account_no(self, masked_account_no: str) -> BankAccount | None:
+        """
+        마스킹된 계좌번호로 계좌를 조회합니다.
+        
+        Args:
+            masked_account_no: 마스킹된 계좌번호 (예: 110-***-***789)
+            
+        Returns:
+            BankAccount | None: 해당하는 계좌 객체 또는 None
+            
+        Raises:
+            RuntimeError: 세션이 초기화되지 않은 경우
+        """
+        if self._session is NotImplemented or self._session is None:
+            raise RuntimeError(
+                "DB 세션이 초기화되지 않았습니다. "
+                "async with BankAccountRepository() as repo: 형식으로 사용하세요."
+            )
+        
+        result = await self._session.execute(
+            select(BankAccount).where(BankAccount.masked_account_no == masked_account_no)
+        )
+        return result.scalars().first()

@@ -317,9 +317,14 @@ class CodefClient:
         )
 
     async def close(self):
-        await self._close_http_client(self._auth_http)
-        await self._close_http_client(self._bank_http)
-        await self._close_http_client(self._card_http)
+        import asyncio
+        
+        await asyncio.gather(
+            self._close_http_client(self._auth_http),
+            self._close_http_client(self._bank_http),
+            self._close_http_client(self._card_http),
+            return_exceptions=True  # 하나의 close가 실패해도 나머지는 계속 진행
+        )
 
     @staticmethod
     async def _close_http_client(http_client: Any):
