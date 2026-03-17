@@ -9,6 +9,7 @@ Authorization 헤더의 Bearer 토큰을 DB 저장 값과 대조합니다.
 """
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 from typing import TYPE_CHECKING, AsyncGenerator
 
 from fastapi import Depends, HTTPException, status
@@ -74,6 +75,7 @@ async def verify_agent_token(
 # Repository 의존성 주입
 # ─────────────────────────────────────────────────────────────
 
+@asynccontextmanager
 async def get_card_account_repository() -> AsyncGenerator[CardAccountRepository, None]:
     """
     CardAccountRepository 의존성을 제공합니다.
@@ -83,6 +85,7 @@ async def get_card_account_repository() -> AsyncGenerator[CardAccountRepository,
     async with repo:
         yield repo
 
+@asynccontextmanager
 
 async def get_bank_account_repository() -> AsyncGenerator[BankAccountRepository, None]:
     """
@@ -94,6 +97,7 @@ async def get_bank_account_repository() -> AsyncGenerator[BankAccountRepository,
         yield repo
 
 
+@asynccontextmanager
 async def get_system_repository() -> AsyncGenerator[SystemRepository, None]:
     """
     SystemRepository 의존성을 제공합니다.
@@ -108,6 +112,7 @@ async def get_system_repository() -> AsyncGenerator[SystemRepository, None]:
 # 외부 서비스 클라이언트 의존성 주입
 # ─────────────────────────────────────────────────────────────
 
+@asynccontextmanager
 async def get_codef_client() -> AsyncGenerator[CodefClient, None]:
     """
     CodefClient 의존성을 제공합니다.
