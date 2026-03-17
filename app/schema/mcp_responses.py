@@ -39,10 +39,10 @@ class BankTransactionRecord(BaseModel):
     withdrawal: str | None = Field(None, description="출금액 (원)")
     deposit: str | None = Field(None, description="입금액 (원)")
     balance: str | None = Field(None, description="거래 후 잔액 (원)")
-    resAccountDesc1: str | None = Field(None, description="거래내역 비고1 [보낸분/받는분]")
-    resAccountDesc2: str | None = Field(None, description="거래내역 비고2 [거래구분/메모]")
-    resAccountDesc3: str | None = Field(None, description="거래내역 비고3 [적요]")
-    resAccountDesc4: str | None = Field(None, description="거래내역 비고4 [거래점]")
+    description1: str | None = Field(None, description="거래내역 비고1 [보낸분/받는분]")
+    description2: str | None = Field(None, description="거래내역 비고2 [거래구분/메모]")
+    description3: str | None = Field(None, description="거래내역 비고3 [적요]")
+    description4: str | None = Field(None, description="거래내역 비고4 [거래점]")
 
 
 class BankAccountListResponse(BaseModel):

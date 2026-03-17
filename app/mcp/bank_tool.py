@@ -144,10 +144,10 @@ class BankTool(MCPComponent):
                         withdrawal=item.res_account_out,
                         deposit=item.res_account_in,
                         balance=item.res_after_tran_balance,
-                        resAccountDesc1=getattr(item, 'res_account_desc1', None),
-                        resAccountDesc2=getattr(item, 'res_account_desc2', None),
-                        resAccountDesc3=getattr(item, 'res_account_desc3', None),
-                        resAccountDesc4=getattr(item, 'res_account_desc4', None),
+                        description1=item.res_account_desc1,
+                        description2=item.res_account_desc2,
+                        description3=item.res_account_desc3,
+                        description4=item.res_account_desc4,
                     ))
             return transactions
         except Exception as e:
