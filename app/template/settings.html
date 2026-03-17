@@ -57,8 +57,21 @@
       </div>
 
       <div>
-        <h3 class="text-sm font-medium text-slate-700 mb-3">AI 에이전트 연동 가이드</h3>
-        <p class="text-xs text-slate-400 mb-4">플랫폼을 선택한 뒤 아래 스니펫을 복사하여 사용하세요. 복사 시 <code class="px-1 py-0.5 bg-slate-100 rounded text-slate-600">&lt;TOKEN&gt;</code>이 현재 인증 토큰으로 자동 치환됩니다.</p>
+        <h3 class="text-sm font-medium text-slate-700 mb-2">AI 에이전트 연동 가이드</h3>
+        <div class="mb-4 text-xs text-slate-500 bg-slate-50 border border-slate-100 rounded-xl px-3 py-3 flex flex-col gap-1.5">
+          <p class="flex items-start gap-1.5">
+            <span class="mt-0.5 inline-flex items-center justify-center w-4 h-4 rounded-full bg-indigo-100 text-[10px] font-semibold text-indigo-600">1</span>
+            <span>아래에서 <span class="font-semibold text-slate-700">사용 중인 도구를 선택</span>하세요.</span>
+          </p>
+          <p class="flex items-start gap-1.5">
+            <span class="mt-0.5 inline-flex items-center justify-center w-4 h-4 rounded-full bg-indigo-100 text-[10px] font-semibold text-indigo-600">2</span>
+            <span>각 탭의 안내에 따라 <span class="font-semibold text-slate-700">설정 파일 또는 명령어 위치</span>를 확인하세요.</span>
+          </p>
+          <p class="flex items-start gap-1.5">
+            <span class="mt-0.5 inline-flex items-center justify-center w-4 h-4 rounded-full bg-indigo-100 text-[10px] font-semibold text-indigo-600">3</span>
+            <span><span class="font-semibold text-slate-700">[복사하기]</span> 버튼을 누르면 스니펫 안의 <code class="px-1 py-0.5 bg-slate-100 rounded text-slate-600">&lt;TOKEN&gt;</code> 이 현재 인증 토큰으로 자동 치환되어 복사됩니다.</span>
+          </p>
+        </div>
         <div class="flex flex-wrap gap-1 border-b border-slate-200 mb-4 overflow-x-auto">
           <button type="button" id="tab-claude-desktop" data-platform="claude-desktop"
                   class="integration-tab px-3 py-2 text-sm font-medium text-indigo-600 border-b-2 border-indigo-500 transition-colors shrink-0">
@@ -84,7 +97,20 @@
 
         <!-- 1. Claude Desktop -->
         <div id="integration-claude-desktop" class="integration-panel space-y-3">
-          <p class="text-sm text-slate-600">설정(Settings) → 개발자(Developer) → 구성 편집(Edit Config) 메뉴를 클릭하여 <code class="px-1.5 py-0.5 bg-slate-100 rounded text-slate-700 font-mono text-xs">claude_desktop_config.json</code> 파일을 엽니다. 아래 코드를 추가하여 저장한 뒤 앱을 완전히 재시작하세요.</p>
+          <div class="flex items-center justify-between">
+            <div>
+          <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide">연동 위치</p>
+          <p class="text-sm text-slate-700 mt-0.5">
+            상단 메뉴에서
+            <span class="font-mono bg-slate-100 px-1 py-0.5 rounded text-xs">Settings → Developer → Edit Config</span>
+            를 차례로 클릭한 뒤,
+            <code class="px-1.5 py-0.5 bg-slate-100 rounded text-slate-700 font-mono text-xs">claude_desktop_config.json</code>
+            파일을 엽니다.
+          </p>
+            </div>
+            <span class="inline-flex items-center px-2 py-1 rounded-full bg-indigo-50 text-[10px] font-semibold text-indigo-700 border border-indigo-100">JSON 구성 파일</span>
+          </div>
+          <p class="text-xs text-slate-500">아래 코드를 <code class="px-1 py-0.5 bg-slate-100 rounded text-slate-700 font-mono text-[11px]">mcpServers</code> 블록에 추가한 뒤 저장하고, Claude Desktop 앱을 완전히 종료 후 다시 실행하세요.</p>
           <div class="relative rounded-xl overflow-hidden bg-slate-900">
             <button type="button" class="copy-snippet absolute top-2 right-2 px-2.5 py-1.5 text-xs font-medium text-slate-300 hover:text-white bg-slate-700/80 hover:bg-slate-600 rounded-lg transition-colors z-10" data-platform="claude-desktop">[복사하기]</button>
             <pre class="snippet-content p-4 pr-24 pt-10 text-slate-100 text-xs font-mono overflow-x-auto leading-relaxed" id="snippet-claude-desktop" data-snippet="claude-desktop"></pre>
@@ -93,7 +119,22 @@
 
         <!-- 2. Cursor -->
         <div id="integration-cursor" class="integration-panel space-y-3 hidden">
-          <p class="text-sm text-slate-600"><code class="px-1.5 py-0.5 bg-slate-100 rounded text-slate-700 font-mono text-xs">Cursor Settings → Features → MCP</code> 메뉴로 이동하여 <code class="px-1.5 py-0.5 bg-slate-100 rounded text-slate-700 font-mono text-xs">+ Add New MCP Server</code>를 클릭합니다. Type을 <code class="px-1.5 py-0.5 bg-slate-100 rounded text-slate-700 font-mono text-xs">SSE</code>로 선택하고 위의 URL과 Header 정보를 입력하세요.</p>
+          <div class="flex items-center justify-between">
+            <div>
+          <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide">연동 위치</p>
+          <p class="text-sm text-slate-700 mt-0.5">
+            우측 상단의
+            <span class="font-mono bg-slate-100 px-1 py-0.5 rounded text-xs">Settings</span>
+            를 열고
+            <span class="font-mono bg-slate-100 px-1 py-0.5 rounded text-xs">Features → MCP</span>
+            메뉴로 이동한 뒤,
+            <code class="px-1.5 py-0.5 bg-slate-100 rounded text-slate-700 font-mono text-xs">+ Add New MCP Server</code>
+            버튼을 클릭합니다.
+          </p>
+            </div>
+            <span class="inline-flex items-center px-2 py-1 rounded-full bg-indigo-50 text-[10px] font-semibold text-indigo-700 border border-indigo-100">SSE MCP 서버</span>
+          </div>
+          <p class="text-xs text-slate-500">Type 을 <code class="px-1 py-0.5 bg-slate-100 rounded text-slate-700 font-mono text-[11px]">SSE</code> 로 선택한 뒤, 아래 스니펫의 URL 과 Authorization 헤더 값을 그대로 입력하고 저장하세요.</p>
           <div class="relative rounded-xl overflow-hidden bg-slate-900">
             <button type="button" class="copy-snippet absolute top-2 right-2 px-2.5 py-1.5 text-xs font-medium text-slate-300 hover:text-white bg-slate-700/80 hover:bg-slate-600 rounded-lg transition-colors z-10" data-platform="cursor">[복사하기]</button>
             <pre class="snippet-content p-4 pr-24 pt-10 text-slate-100 text-xs font-mono overflow-x-auto leading-relaxed" id="snippet-cursor" data-snippet="cursor"></pre>
@@ -102,7 +143,21 @@
 
         <!-- 3. Antigravity -->
         <div id="integration-antigravity" class="integration-panel space-y-3 hidden">
-          <p class="text-sm text-slate-600">에디터 설정의 <code class="px-1.5 py-0.5 bg-slate-100 rounded text-slate-700 font-mono text-xs">MCP Servers</code> 항목이나 <code class="px-1.5 py-0.5 bg-slate-100 rounded text-slate-700 font-mono text-xs">.antigravity/mcp_config.json</code> 파일을 열어 위 설정을 추가한 뒤, 에디터 창을 새로고침(Reload)하세요.</p>
+          <div class="flex items-center justify-between">
+            <div>
+          <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide">연동 위치</p>
+          <p class="text-sm text-slate-700 mt-0.5">
+            에디터 환경설정에서
+            <span class="font-mono bg-slate-100 px-1 py-0.5 rounded text-xs">MCP Servers</span>
+            섹션을 열거나,
+            프로젝트 루트의
+            <span class="font-mono bg-slate-100 px-1 py-0.5 rounded text-xs">.antigravity/mcp_config.json</span>
+            파일을 직접 엽니다.
+          </p>
+            </div>
+            <span class="inline-flex items-center px-2 py-1 rounded-full bg-indigo-50 text-[10px] font-semibold text-indigo-700 border border-indigo-100">JSON 구성 파일</span>
+          </div>
+          <p class="text-xs text-slate-500">아래 설정을 <code class="px-1 py-0.5 bg-slate-100 rounded text-slate-700 font-mono text-[11px]">mcpServers</code> 블록 안에 추가하고 저장한 뒤, 에디터 창을 Reload 하여 설정을 반영하세요.</p>
           <div class="relative rounded-xl overflow-hidden bg-slate-900">
             <button type="button" class="copy-snippet absolute top-2 right-2 px-2.5 py-1.5 text-xs font-medium text-slate-300 hover:text-white bg-slate-700/80 hover:bg-slate-600 rounded-lg transition-colors z-10" data-platform="antigravity">[복사하기]</button>
             <pre class="snippet-content p-4 pr-24 pt-10 text-slate-100 text-xs font-mono overflow-x-auto leading-relaxed" id="snippet-antigravity" data-snippet="antigravity"></pre>
@@ -111,7 +166,14 @@
 
         <!-- 4. Claude Code -->
         <div id="integration-claude-code" class="integration-panel space-y-3 hidden">
-          <p class="text-sm text-slate-600">터미널을 열고 위 명령어를 실행하여 원격 서버를 추가합니다. 이후 <code class="px-1.5 py-0.5 bg-slate-100 rounded text-slate-700 font-mono text-xs">claude</code> 명령어로 진입하여 <code class="px-1.5 py-0.5 bg-slate-100 rounded text-slate-700 font-mono text-xs">/mcp</code>를 입력하면 연결 상태를 확인할 수 있습니다.</p>
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide">연동 방법</p>
+              <p class="text-sm text-slate-700 mt-0.5">터미널에서 아래 명령어를 그대로 실행해 <span class="font-semibold text-slate-800">personal-finance-mcp</span> 원격 MCP 서버를 등록합니다.</p>
+            </div>
+            <span class="inline-flex items-center px-2 py-1 rounded-full bg-slate-900/70 text-[10px] font-semibold text-amber-200 border border-slate-700">CLI 명령어</span>
+          </div>
+          <p class="text-xs text-slate-500">등록 후 <code class="px-1.5 py-0.5 bg-slate-100 rounded text-slate-700 font-mono text-xs">claude</code> 명령어로 CLI를 실행하고 <code class="px-1.5 py-0.5 bg-slate-100 rounded text-slate-700 font-mono text-xs">/mcp</code> 를 입력하면 현재 등록된 MCP 서버 목록과 연결 상태를 확인할 수 있습니다.</p>
           <div class="relative rounded-xl overflow-hidden bg-slate-900">
             <button type="button" class="copy-snippet absolute top-2 right-2 px-2.5 py-1.5 text-xs font-medium text-slate-300 hover:text-white bg-slate-700/80 hover:bg-slate-600 rounded-lg transition-colors z-10" data-platform="claude-code">[복사하기]</button>
             <pre class="snippet-content p-4 pr-24 pt-10 text-slate-100 text-xs font-mono overflow-x-auto leading-relaxed" id="snippet-claude-code" data-snippet="claude-code"></pre>
@@ -120,7 +182,20 @@
 
         <!-- 5. Gemini CLI -->
         <div id="integration-gemini-cli" class="integration-panel space-y-3 hidden">
-          <p class="text-sm text-slate-600">터미널에서 <code class="px-1.5 py-0.5 bg-slate-100 rounded text-slate-700 font-mono text-xs">~/.gemini/settings.json</code> 파일(또는 프로젝트의 <code class="px-1.5 py-0.5 bg-slate-100 rounded text-slate-700 font-mono text-xs">.gemini/settings.json</code>)을 열고 <code class="px-1.5 py-0.5 bg-slate-100 rounded text-slate-700 font-mono text-xs">mcpServers</code> 블록 안에 위 설정을 추가합니다. 이후 <code class="px-1.5 py-0.5 bg-slate-100 rounded text-slate-700 font-mono text-xs">gemini</code> 명령어로 CLI를 시작하고 <code class="px-1.5 py-0.5 bg-slate-100 rounded text-slate-700 font-mono text-xs">/mcp list</code>를 입력해 연결을 확인하세요.</p>
+          <div class="flex items-center justify-between">
+            <div>
+          <p class="text-xs font-semibold text-slate-500 uppercase tracking-wide">연동 위치</p>
+          <p class="text-sm text-slate-700 mt-0.5">
+            사용하는 환경에 따라 다음 중 하나의 설정 파일을 텍스트 에디터로 엽니다.<br>
+            - 전역 설정:
+            <span class="font-mono bg-slate-100 px-1 py-0.5 rounded text-xs">~/.gemini/settings.json</span><br>
+            - 프로젝트별 설정:
+            <span class="font-mono bg-slate-100 px-1 py-0.5 rounded text-xs">.gemini/settings.json</span>
+          </p>
+            </div>
+            <span class="inline-flex items-center px-2 py-1 rounded-full bg-indigo-50 text-[10px] font-semibold text-indigo-700 border border-indigo-100">CLI 설정 파일</span>
+          </div>
+          <p class="text-xs text-slate-500">아래 설정을 <code class="px-1 py-0.5 bg-slate-100 rounded text-slate-700 font-mono text-[11px]">mcpServers</code> 블록 안에 추가하고 저장한 뒤, <code class="px-1.5 py-0.5 bg-slate-100 rounded text-slate-700 font-mono text-xs">gemini</code> 명령어로 CLI를 시작하여 <code class="px-1.5 py-0.5 bg-slate-100 rounded text-slate-700 font-mono text-xs">/mcp list</code> 를 입력해 personal-finance-mcp 서버가 잘 연결되었는지 확인하세요.</p>
           <div class="relative rounded-xl overflow-hidden bg-slate-900">
             <button type="button" class="copy-snippet absolute top-2 right-2 px-2.5 py-1.5 text-xs font-medium text-slate-300 hover:text-white bg-slate-700/80 hover:bg-slate-600 rounded-lg transition-colors z-10" data-platform="gemini-cli">[복사하기]</button>
             <pre class="snippet-content p-4 pr-24 pt-10 text-slate-100 text-xs font-mono overflow-x-auto leading-relaxed" id="snippet-gemini-cli" data-snippet="gemini-cli"></pre>
