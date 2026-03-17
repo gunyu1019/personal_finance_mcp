@@ -283,7 +283,7 @@
     <div class="p-5">
       <p class="text-slate-500 text-sm mb-4" id="extra-input-desc">동기화를 위해 추가 정보를 입력해 주세요.</p>
       <div id="extra-input-fields" class="space-y-4 mb-6"></div>
-      <button id="extra-input-submit"
+      <button type="button" id="extra-input-submit"
               class="w-full py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500
                      text-white font-semibold rounded-xl transition-all flex items-center justify-center gap-2 text-sm">
         <span id="extra-input-btn-text">동기화하기</span>
@@ -569,7 +569,11 @@ document.getElementById('extra-input-modal').addEventListener('click', e => {
   if (e.target.id === 'extra-input-modal') closeExtraInputModal();
 });
 
-document.getElementById('extra-input-submit').addEventListener('click', async () => {
+document.getElementById('extra-input-submit').addEventListener('click', async (e) => {
+  e.preventDefault();
+  const btn = e.currentTarget;
+  if (btn.disabled) return;
+
   const container = document.getElementById('extra-input-fields');
   const rawData = {};
   for (const input of container.querySelectorAll('input')) {
@@ -582,16 +586,26 @@ document.getElementById('extra-input-submit').addEventListener('click', async ()
     rawData[input.name] = val;
   }
 
+  btn.disabled = true;
   document.getElementById('extra-input-btn-text').classList.add('hidden');
   document.getElementById('extra-input-btn-spinner').classList.remove('hidden');
 
   try {
     const encryptedData = await encryptLoginData(rawData);
+    const callback = _extraInputCallback;
     closeExtraInputModal();
-    if (_extraInputCallback) await _extraInputCallback(encryptedData);
+    if (callback) {
+      try {
+        await callback(encryptedData);
+      } catch (syncErr) {
+        console.error('재동기화 호출 실패:', syncErr);
+        showToast(syncErr.message || '동기화 요청 실패', 'error');
+      }
+    }
   } catch (err) {
     showToast(err.message || '암호화 실패', 'error');
   } finally {
+    btn.disabled = false;
     document.getElementById('extra-input-btn-text').classList.remove('hidden');
     document.getElementById('extra-input-btn-spinner').classList.add('hidden');
   }
