@@ -17,3 +17,4 @@ class AccountModifyList(CodefBaseModel):
 
 class AccountList(CodefBaseModel):
     account_list: list[Account] = Field(default_factory=list)
+    connected_id: str

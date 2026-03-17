@@ -145,10 +145,11 @@ class CodefClient:
     async def auth_delete_account(
             self,
             account: list[Account],
+            connected_id: str,
             authorization: Optional[str] = None
     ) -> CodefResult[AccountModifyResult]:
         return await self._auth_http.delete_account(
-            account=AccountList(account_list=account),
+            account=AccountList(account_list=account, connected_id=connected_id),
             authorization=authorization
         )
 

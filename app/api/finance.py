@@ -530,8 +530,9 @@ class FinanceAPI:
                     client_type="P",
                     organization=institution_code,
                     business_type=business_type,
+                    login_type="1",
                 )
-                unlink_res = await client.auth_delete_account([account_obj])
+                unlink_res = await client.auth_delete_account([account_obj], connected_id)
                 # CF-00000: 성공 / CF-12004: 이미 삭제됨 (둘 다 허용)
                 if unlink_res.result.code not in ("CF-00000", "CF-12004"):
                     raise HTTPException(
