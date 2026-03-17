@@ -15,14 +15,14 @@
         <th>on Claude Desktop (Claude Sonnet)</th>
     </tr>
     <tr>
-        <td><img src=".github/dashboard.png" width="50%"  align="center" /></td>
-        <td rowspan="3"><img src=".github/claude_desktop.png" width="50%"  align="center" /></td>
+        <td><img src=".github/dashboard.png"  align="center" /></td>
+        <td rowspan="3"><img src=".github/claude_desktop.png" align="center" /></td>
     </tr>
     <tr>
          <th>on Antigravity (Gemini 3.0 Flash)</th>
     </tr>
     <tr>
-        <td><img src=".github/antigravity.png" width="50%" align="center" /></td>
+        <td><img src=".github/antigravity.png" align="center" /></td>
     </tr>
 </table>
 
