@@ -112,11 +112,7 @@ class CardTool(MCPComponent):
         if not card.encrypted_card_no:
             raise ValueError("암호화된 카드번호가 없습니다. 데이터 동기화를 다시 수행해주세요.")
 
-        try:
-            real_card_no = decrypt_sensitive_data(card.encrypted_card_no)
-        except Exception as e:
-            logger.error("카드번호 복호화 실패 — card_code=%s", company_code)
-            raise ValueError("카드번호 복호화에 실패했습니다.") from e
+        real_card_no = card.encrypted_card_no
 
         # ── 비밀번호 필수 카드사: 저장된 카드 비밀번호 복호화 ────
         real_card_password: str | None = None
