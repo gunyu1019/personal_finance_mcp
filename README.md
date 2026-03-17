@@ -11,8 +11,8 @@
 
 <table>
     <tr>
-        <th>Dashboard</th>
-        <th>on Claude Desktop (Claude Sonnet)</th>
+        <th width="50%">Dashboard</th>
+        <th width="50%">on Claude Desktop (Claude Sonnet)</th>
     </tr>
     <tr>
         <td><img src=".github/dashboard.png"  align="center" /></td>
