@@ -57,35 +57,74 @@
       </div>
 
       <div>
-        <h3 class="text-sm font-medium text-slate-700 mb-3">플랫폼별 연동 설정</h3>
-        <p class="text-xs text-slate-400 mb-4">아래 JSON 설정을 복사하여 AI 플랫폼의 MCP 설정 파일에 추가하세요.</p>
-        <div class="flex border-b border-slate-200 mb-4">
-          <button id="tab-cursor"
-                  class="px-4 py-2 text-sm font-medium text-indigo-600 border-b-2 border-indigo-500 transition-colors"
-                  onclick="switchIntegrationTab('cursor')">Cursor / Antigravity</button>
-          <button id="tab-claude"
-                  class="px-4 py-2 text-sm font-medium text-slate-400 border-b-2 border-transparent hover:text-slate-600 transition-colors"
-                  onclick="switchIntegrationTab('claude')">Claude Desktop</button>
+        <h3 class="text-sm font-medium text-slate-700 mb-3">AI 에이전트 연동 가이드</h3>
+        <p class="text-xs text-slate-400 mb-4">플랫폼을 선택한 뒤 아래 스니펫을 복사하여 사용하세요. 복사 시 <code class="px-1 py-0.5 bg-slate-100 rounded text-slate-600">&lt;TOKEN&gt;</code>이 현재 인증 토큰으로 자동 치환됩니다.</p>
+        <div class="flex flex-wrap gap-1 border-b border-slate-200 mb-4 overflow-x-auto">
+          <button type="button" id="tab-claude-desktop" data-platform="claude-desktop"
+                  class="integration-tab px-3 py-2 text-sm font-medium text-indigo-600 border-b-2 border-indigo-500 transition-colors shrink-0">
+            Claude Desktop
+          </button>
+          <button type="button" id="tab-cursor" data-platform="cursor"
+                  class="integration-tab px-3 py-2 text-sm font-medium text-slate-400 border-b-2 border-transparent hover:text-slate-600 transition-colors shrink-0">
+            Cursor
+          </button>
+          <button type="button" id="tab-antigravity" data-platform="antigravity"
+                  class="integration-tab px-3 py-2 text-sm font-medium text-slate-400 border-b-2 border-transparent hover:text-slate-600 transition-colors shrink-0">
+            Antigravity
+          </button>
+          <button type="button" id="tab-claude-code" data-platform="claude-code"
+                  class="integration-tab px-3 py-2 text-sm font-medium text-slate-400 border-b-2 border-transparent hover:text-slate-600 transition-colors shrink-0">
+            Claude Code
+          </button>
+          <button type="button" id="tab-gemini-cli" data-platform="gemini-cli"
+                  class="integration-tab px-3 py-2 text-sm font-medium text-slate-400 border-b-2 border-transparent hover:text-slate-600 transition-colors shrink-0">
+            Gemini CLI
+          </button>
         </div>
-        <div id="integration-cursor" class="space-y-3">
-          <div class="flex items-center justify-between">
-            <p class="text-xs text-slate-500">SSE 방식으로 직접 연결</p>
-            <button onclick="copyIntegrationCode('cursor')"
-                    class="px-2 py-1 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded border transition-colors">
-              코드 복사
-            </button>
+
+        <!-- 1. Claude Desktop -->
+        <div id="integration-claude-desktop" class="integration-panel space-y-3">
+          <p class="text-sm text-slate-600">설정(Settings) → 개발자(Developer) → 구성 편집(Edit Config) 메뉴를 클릭하여 <code class="px-1.5 py-0.5 bg-slate-100 rounded text-slate-700 font-mono text-xs">claude_desktop_config.json</code> 파일을 엽니다. 아래 코드를 추가하여 저장한 뒤 앱을 완전히 재시작하세요.</p>
+          <div class="relative rounded-xl overflow-hidden bg-slate-900">
+            <button type="button" class="copy-snippet absolute top-2 right-2 px-2.5 py-1.5 text-xs font-medium text-slate-300 hover:text-white bg-slate-700/80 hover:bg-slate-600 rounded-lg transition-colors z-10" data-platform="claude-desktop">[복사하기]</button>
+            <pre class="snippet-content p-4 pr-24 pt-10 text-slate-100 text-xs font-mono overflow-x-auto leading-relaxed" id="snippet-claude-desktop" data-snippet="claude-desktop"></pre>
           </div>
-          <pre id="cursor-config" class="bg-slate-900 text-slate-100 p-4 rounded-xl text-xs font-mono overflow-x-auto leading-relaxed"></pre>
         </div>
-        <div id="integration-claude" class="space-y-3 hidden">
-          <div class="flex items-center justify-between">
-            <p class="text-xs text-slate-500">mcp-remote 패키지를 통한 연결</p>
-            <button onclick="copyIntegrationCode('claude')"
-                    class="px-2 py-1 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded border transition-colors">
-              코드 복사
-            </button>
+
+        <!-- 2. Cursor -->
+        <div id="integration-cursor" class="integration-panel space-y-3 hidden">
+          <p class="text-sm text-slate-600"><code class="px-1.5 py-0.5 bg-slate-100 rounded text-slate-700 font-mono text-xs">Cursor Settings → Features → MCP</code> 메뉴로 이동하여 <code class="px-1.5 py-0.5 bg-slate-100 rounded text-slate-700 font-mono text-xs">+ Add New MCP Server</code>를 클릭합니다. Type을 <code class="px-1.5 py-0.5 bg-slate-100 rounded text-slate-700 font-mono text-xs">SSE</code>로 선택하고 위의 URL과 Header 정보를 입력하세요.</p>
+          <div class="relative rounded-xl overflow-hidden bg-slate-900">
+            <button type="button" class="copy-snippet absolute top-2 right-2 px-2.5 py-1.5 text-xs font-medium text-slate-300 hover:text-white bg-slate-700/80 hover:bg-slate-600 rounded-lg transition-colors z-10" data-platform="cursor">[복사하기]</button>
+            <pre class="snippet-content p-4 pr-24 pt-10 text-slate-100 text-xs font-mono overflow-x-auto leading-relaxed" id="snippet-cursor" data-snippet="cursor"></pre>
           </div>
-          <pre id="claude-config" class="bg-slate-900 text-slate-100 p-4 rounded-xl text-xs font-mono overflow-x-auto leading-relaxed"></pre>
+        </div>
+
+        <!-- 3. Antigravity -->
+        <div id="integration-antigravity" class="integration-panel space-y-3 hidden">
+          <p class="text-sm text-slate-600">에디터 설정의 <code class="px-1.5 py-0.5 bg-slate-100 rounded text-slate-700 font-mono text-xs">MCP Servers</code> 항목이나 <code class="px-1.5 py-0.5 bg-slate-100 rounded text-slate-700 font-mono text-xs">.antigravity/mcp_config.json</code> 파일을 열어 위 설정을 추가한 뒤, 에디터 창을 새로고침(Reload)하세요.</p>
+          <div class="relative rounded-xl overflow-hidden bg-slate-900">
+            <button type="button" class="copy-snippet absolute top-2 right-2 px-2.5 py-1.5 text-xs font-medium text-slate-300 hover:text-white bg-slate-700/80 hover:bg-slate-600 rounded-lg transition-colors z-10" data-platform="antigravity">[복사하기]</button>
+            <pre class="snippet-content p-4 pr-24 pt-10 text-slate-100 text-xs font-mono overflow-x-auto leading-relaxed" id="snippet-antigravity" data-snippet="antigravity"></pre>
+          </div>
+        </div>
+
+        <!-- 4. Claude Code -->
+        <div id="integration-claude-code" class="integration-panel space-y-3 hidden">
+          <p class="text-sm text-slate-600">터미널을 열고 위 명령어를 실행하여 원격 서버를 추가합니다. 이후 <code class="px-1.5 py-0.5 bg-slate-100 rounded text-slate-700 font-mono text-xs">claude</code> 명령어로 진입하여 <code class="px-1.5 py-0.5 bg-slate-100 rounded text-slate-700 font-mono text-xs">/mcp</code>를 입력하면 연결 상태를 확인할 수 있습니다.</p>
+          <div class="relative rounded-xl overflow-hidden bg-slate-900">
+            <button type="button" class="copy-snippet absolute top-2 right-2 px-2.5 py-1.5 text-xs font-medium text-slate-300 hover:text-white bg-slate-700/80 hover:bg-slate-600 rounded-lg transition-colors z-10" data-platform="claude-code">[복사하기]</button>
+            <pre class="snippet-content p-4 pr-24 pt-10 text-slate-100 text-xs font-mono overflow-x-auto leading-relaxed" id="snippet-claude-code" data-snippet="claude-code"></pre>
+          </div>
+        </div>
+
+        <!-- 5. Gemini CLI -->
+        <div id="integration-gemini-cli" class="integration-panel space-y-3 hidden">
+          <p class="text-sm text-slate-600">터미널에서 <code class="px-1.5 py-0.5 bg-slate-100 rounded text-slate-700 font-mono text-xs">~/.gemini/settings.json</code> 파일(또는 프로젝트의 <code class="px-1.5 py-0.5 bg-slate-100 rounded text-slate-700 font-mono text-xs">.gemini/settings.json</code>)을 열고 <code class="px-1.5 py-0.5 bg-slate-100 rounded text-slate-700 font-mono text-xs">mcpServers</code> 블록 안에 위 설정을 추가합니다. 이후 <code class="px-1.5 py-0.5 bg-slate-100 rounded text-slate-700 font-mono text-xs">gemini</code> 명령어로 CLI를 시작하고 <code class="px-1.5 py-0.5 bg-slate-100 rounded text-slate-700 font-mono text-xs">/mcp list</code>를 입력해 연결을 확인하세요.</p>
+          <div class="relative rounded-xl overflow-hidden bg-slate-900">
+            <button type="button" class="copy-snippet absolute top-2 right-2 px-2.5 py-1.5 text-xs font-medium text-slate-300 hover:text-white bg-slate-700/80 hover:bg-slate-600 rounded-lg transition-colors z-10" data-platform="gemini-cli">[복사하기]</button>
+            <pre class="snippet-content p-4 pr-24 pt-10 text-slate-100 text-xs font-mono overflow-x-auto leading-relaxed" id="snippet-gemini-cli" data-snippet="gemini-cli"></pre>
+          </div>
         </div>
       </div>
     </div>
@@ -875,35 +914,94 @@ document.getElementById('btn-regenerate-token').addEventListener('click', async 
   }
 });
 
+// 플랫폼별 스니펫 템플릿 (<TOKEN>은 복사 시 실제 토큰으로 치환)
+const INTEGRATION_SNIPPETS = {
+  'claude-desktop': `{
+  "mcpServers": {
+    "personal-finance-mcp": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-remote@latest",
+        "http://127.0.0.1:8000/mcp/sse",
+        "--allow-http",
+        "--header",
+        "Authorization:Bearer <TOKEN>"
+      ]
+    }
+  }
+}`,
+  'cursor': `"personal-finance-mcp": {
+  "url": "http://127.0.0.1:8000/mcp/sse",
+  "headers": {
+    "Authorization": "Bearer <TOKEN>"
+  }
+}`,
+  'antigravity': `"personal-finance-mcp": {
+  "serverUrl": "http://127.0.0.1:8000/mcp/sse",
+  "headers": {
+    "Authorization": "Bearer <TOKEN>"
+  }
+}`,
+  'claude-code': `claude mcp add personal-finance-mcp http://127.0.0.1:8000/mcp/sse --transport sse --header "Authorization: Bearer <TOKEN>"`,
+  'gemini-cli': `"personal-finance-mcp": {
+  "transport": "sse",
+  "url": "http://127.0.0.1:8000/mcp/sse",
+  "headers": {
+    "Authorization": "Bearer <TOKEN>"
+  }
+}`
+};
+
+const INTEGRATION_PLATFORMS = ['claude-desktop', 'cursor', 'antigravity', 'claude-code', 'gemini-cli'];
+
 function switchIntegrationTab(platform) {
-  const isC = platform === 'cursor';
-  document.getElementById('tab-cursor').className = 'px-4 py-2 text-sm font-medium border-b-2 transition-colors ' +
-    (isC ? 'text-indigo-600 border-indigo-500' : 'text-slate-400 border-transparent hover:text-slate-600');
-  document.getElementById('tab-claude').className = 'px-4 py-2 text-sm font-medium border-b-2 transition-colors ' +
-    (!isC ? 'text-indigo-600 border-indigo-500' : 'text-slate-400 border-transparent hover:text-slate-600');
-  document.getElementById('integration-cursor').classList.toggle('hidden', !isC);
-  document.getElementById('integration-claude').classList.toggle('hidden', isC);
+  INTEGRATION_PLATFORMS.forEach(p => {
+    const tab = document.querySelector(`[data-platform="${p}"]`);
+    const panel = document.getElementById(`integration-${p}`);
+    if (!tab || !panel) return;
+    const active = p === platform;
+    tab.className = 'integration-tab px-3 py-2 text-sm font-medium border-b-2 transition-colors shrink-0 ' +
+      (active ? 'text-indigo-600 border-indigo-500' : 'text-slate-400 border-transparent hover:text-slate-600');
+    panel.classList.toggle('hidden', !active);
+  });
 }
 
-async function copyIntegrationCode(platform) {
-  const configEl = document.getElementById(`${platform}-config`);
-  if (!configEl) return;
+function getMcpToken() {
+  const el = document.getElementById('mcp-token-display');
+  return el ? el.textContent.trim() : '';
+}
+
+async function copySnippetWithToken(platform) {
+  const template = INTEGRATION_SNIPPETS[platform];
+  if (!template) return;
+  const token = getMcpToken();
+  const text = template.replace(/<TOKEN>/g, token);
   try {
-    await navigator.clipboard.writeText(configEl.textContent.trim());
-    const btn = event.target.closest('button');
-    const orig = btn.textContent;
-    btn.textContent = '복사됨 ✓';
-    setTimeout(() => { btn.textContent = orig; }, 2000);
-  } catch { showToast('복사에 실패했습니다.', 'error'); }
+    await navigator.clipboard.writeText(text);
+    const btn = document.querySelector(`.copy-snippet[data-platform="${platform}"]`);
+    if (btn) {
+      const orig = btn.textContent;
+      btn.textContent = '복사됨 ✓';
+      setTimeout(() => { btn.textContent = orig; }, 2000);
+    }
+    showToast('토큰이 치환된 내용으로 복사되었습니다.');
+  } catch {
+    showToast('복사에 실패했습니다.', 'error');
+  }
 }
 
 function updateTokenInConfigs() {
-  const token = document.getElementById('mcp-token-display').textContent.trim();
-  const cursorEl = document.getElementById('cursor-config');
-  const claudeEl = document.getElementById('claude-config');
-  if (cursorEl) cursorEl.textContent = `{\n  "mcpServers": {\n    "personal-finance-mcp": {\n      "serverUrl": "http://127.0.0.1:8000/mcp/sse",\n      "headers": {\n        "Authorization": "Bearer ${token}"\n      }\n    }\n  }\n}`;
-  if (claudeEl) claudeEl.textContent = `{\n  "mcpServers": {\n    "personal-finance-mcp": {\n      "command": "npx",\n      "args": [\n        "-y",\n        "@modelcontextprotocol/mcp-remote",\n        "http://127.0.0.1:8000/mcp/sse",\n        "--header",\n        "Authorization: Bearer ${token}"\n      ]\n    }\n  }\n}`;
+  const token = getMcpToken();
+  INTEGRATION_PLATFORMS.forEach(platform => {
+    const template = INTEGRATION_SNIPPETS[platform];
+    if (!template) return;
+    const el = document.getElementById(`snippet-${platform}`);
+    if (el) el.textContent = template.replace(/<TOKEN>/g, token);
+  });
 }
+
+// 탭·복사 버튼 바인딩은 아래 DOMContentLoaded에서 수행
 
 // ───────────────────────────────────────────────────────────
 // 초기화
@@ -911,6 +1009,13 @@ function updateTokenInConfigs() {
 document.addEventListener('DOMContentLoaded', () => {
   loadInstitutions();
   updateTokenInConfigs();
+
+  document.querySelectorAll('.integration-tab').forEach(tab => {
+    tab.addEventListener('click', () => { if (tab.dataset.platform) switchIntegrationTab(tab.dataset.platform); });
+  });
+  document.querySelectorAll('.copy-snippet').forEach(btn => {
+    btn.addEventListener('click', () => copySnippetWithToken(btn.dataset.platform));
+  });
 });
 </script>
 {% endblock %}
