@@ -1,6 +1,7 @@
 # src/model/bank_account.py
 
 from __future__ import annotations
+from uuid import UUID
 from sqlalchemy import Boolean, String
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -13,11 +14,13 @@ class BankAccount(Base):
     __tablename__ = "bank_accounts"
     __table_args__ = {'extend_existing': True}
 
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+
     # CODEF 기관 코드 (예: "0088" = 신한은행)
     bank_code: Mapped[str] = mapped_column(String(10), nullable=False)
 
-    # SHA-256 해시된 계좌번호 (중복 등록 방지용 Unique)
-    hashed_account_no: Mapped[str] = mapped_column(String(64), nullable=False, primary_key=True)
+    # SHA-256 해시된 계좌번호
+    hashed_account_no: Mapped[str] = mapped_column(String(64), nullable=False)
 
     # 마스킹된 계좌번호 (예: 110-***-***789)
     masked_account_no: Mapped[str] = mapped_column(String(50), nullable=False)

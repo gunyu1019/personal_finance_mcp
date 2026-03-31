@@ -1,6 +1,7 @@
 # src/repository/bank_account_repository.py
 
 from __future__ import annotations
+from uuid import uuid4
 from sqlalchemy import delete, select
 
 from app.dto.bank_account_dto import BankAccountUpsertData
@@ -48,6 +49,7 @@ class BankAccountRepository(BaseRepository):
 
         if existing is None:
             account = BankAccount(
+                id=uuid4(),
                 bank_code=data.bank_code,
                 hashed_account_no=data.hashed_account_no,
                 masked_account_no=data.masked_account_no,
@@ -109,6 +111,7 @@ class BankAccountRepository(BaseRepository):
             if existing_account is None:
                 # 신규 계좌 생성
                 new_account = BankAccount(
+                    id=uuid4(),
                     bank_code=record.bank_code,
                     hashed_account_no=record.hashed_account_no,
                     masked_account_no=record.masked_account_no,
