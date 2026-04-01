@@ -18,7 +18,7 @@ class AuthHttp(CodefBaseHttp):
         super().__init__(base_url, client_id, client_secret, loop)
 
     @pydantic_request_model(by_alias=True)
-    @pydantic_response_model()
+    @pydantic_response_model(by_alias=True)
     @request("POST", PATH_CREATE_ACCOUNT, directly_response=True)
     async def create_account(
             self,
@@ -28,7 +28,7 @@ class AuthHttp(CodefBaseHttp):
         pass
 
     @pydantic_request_model(by_alias=True)
-    @pydantic_response_model()
+    @pydantic_response_model(by_alias=True)
     @request("POST", PATH_ADD_ACCOUNT, directly_response=True)
     async def add_account(
             self,
@@ -38,7 +38,7 @@ class AuthHttp(CodefBaseHttp):
         pass
 
     @pydantic_request_model(by_alias=True)
-    @pydantic_response_model()
+    @pydantic_response_model(by_alias=True)
     @request("POST", PATH_UPDATE_ACCOUNT, directly_response=True)
     async def update_account(
             self,
@@ -48,7 +48,7 @@ class AuthHttp(CodefBaseHttp):
         pass
 
     @pydantic_request_model(by_alias=True)
-    @pydantic_response_model()
+    @pydantic_response_model(by_alias=True)
     @request("POST", PATH_DELETE_ACCOUNT, directly_response=True)
     async def delete_account(
             self,
@@ -58,7 +58,7 @@ class AuthHttp(CodefBaseHttp):
         pass
 
     @pydantic_request_model(by_alias=True)
-    @pydantic_response_model()
+    @pydantic_response_model(by_alias=True)
     @request("POST", PATH_GET_ACCOUNT_LIST, directly_response=True)
     async def get_account_list(
             self,
@@ -68,7 +68,7 @@ class AuthHttp(CodefBaseHttp):
         pass
 
     @pydantic_request_model(by_alias=True)
-    @pydantic_response_model()
+    @pydantic_response_model(by_alias=True)
     @request("POST", PATH_GET_CID_LIST, directly_response=True)
     async def get_cid_list(
             self,

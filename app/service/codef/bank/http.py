@@ -19,7 +19,7 @@ class BankHttp(CodefBaseHttp):
         super().__init__(base_url, client_id, client_secret, loop)
 
     @pydantic_request_model(by_alias=True)
-    @pydantic_response_model()
+    @pydantic_response_model(by_alias=True)
     @request("POST", PATH_BANK_REGISTRATION_STATUS, directly_response=True)
     async def bank_registration_status(
             self,
@@ -31,7 +31,7 @@ class BankHttp(CodefBaseHttp):
         pass
 
     @pydantic_request_model(by_alias=True)
-    @pydantic_response_model()
+    @pydantic_response_model(by_alias=True)
     @request("POST", PATH_BANK_ACCOUNT_LIST, directly_response=True)
     async def bank_account_list(
             self,
@@ -45,7 +45,7 @@ class BankHttp(CodefBaseHttp):
         pass
 
     @pydantic_request_model(by_alias=True)
-    @pydantic_response_model()
+    @pydantic_response_model(by_alias=True)
     @request("POST", PATH_BANK_TRANSACTION_LIST, directly_response=True)
     async def bank_transaction_list(
             self,
