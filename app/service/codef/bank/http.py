@@ -18,7 +18,7 @@ class BankHttp(CodefBaseHttp):
                  loop: Optional[asyncio.AbstractEventLoop] = None):
         super().__init__(base_url, client_id, client_secret, loop)
 
-    @pydantic_request_model()
+    @pydantic_request_model(by_alias=True)
     @pydantic_response_model()
     @request("POST", PATH_BANK_REGISTRATION_STATUS, directly_response=True)
     async def bank_registration_status(
@@ -30,7 +30,7 @@ class BankHttp(CodefBaseHttp):
     ) -> CodefResult[BankRegistrationResult]:
         pass
 
-    @pydantic_request_model()
+    @pydantic_request_model(by_alias=True)
     @pydantic_response_model()
     @request("POST", PATH_BANK_ACCOUNT_LIST, directly_response=True)
     async def bank_account_list(
@@ -44,7 +44,7 @@ class BankHttp(CodefBaseHttp):
     ) -> CodefResult[BankAccountResult]:
         pass
 
-    @pydantic_request_model()
+    @pydantic_request_model(by_alias=True)
     @pydantic_response_model()
     @request("POST", PATH_BANK_TRANSACTION_LIST, directly_response=True)
     async def bank_transaction_list(

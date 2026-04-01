@@ -83,7 +83,6 @@ ENCRYPTION_SECRET_KEY=
 ```
 
 **Run**
-> 현재 `ahttp_client` 패키지의 `pydantic_response_model` 함수 문제로 인해 `service.codef` 모듈이 정상적으로 작동하지 않습니다. 빠른 시일 내에 조치될 예정입니다.
 ```bash
 $ python -m uvicorn app.main:app --reload 
 ```

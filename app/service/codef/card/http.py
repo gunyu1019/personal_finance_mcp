@@ -19,7 +19,7 @@ class CardHttp(CodefBaseHttp):
                  loop: Optional[asyncio.AbstractEventLoop] = None):
         super().__init__(base_url, client_id, client_secret, loop)
 
-    @pydantic_request_model()
+    @pydantic_request_model(by_alias=True)
     @pydantic_response_model()
     @request("POST", PATH_CARD_REGISTRATION_STATUS, directly_response=True)
     async def card_registration_status(
@@ -37,7 +37,7 @@ class CardHttp(CodefBaseHttp):
     ) -> CodefResult[CardRegistrationResult]:
         pass
 
-    @pydantic_request_model()
+    @pydantic_request_model(by_alias=True)
     @pydantic_response_model()
     @request("POST", PATH_CARD_ACCOUNT_LIST, directly_response=True)
     async def card_account_list(
@@ -52,7 +52,7 @@ class CardHttp(CodefBaseHttp):
     ) -> CodefResult[list[CardAccount] | CardAccount]:
         pass
 
-    @pydantic_request_model()
+    @pydantic_request_model(by_alias=True)
     @pydantic_response_model()
     @request("POST", PATH_CARD_APPROVAL_LIST, directly_response=True)
     async def card_approval_list(
