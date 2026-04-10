@@ -26,7 +26,11 @@
     </tr>
 </table>
 
-## 1. Getting Started 🚀
+## 1. Motivation 🎯
+
+## 2. MCP Architecture 🏗️
+
+## 3. Getting Started 🚀
 **Requirements**
 * Python 3.14+
 * [Codef API](https://codef.io/) Client ID, Client Secret and Public Key 
@@ -86,3 +90,24 @@ ENCRYPTION_SECRET_KEY=
 ```bash
 $ python -m uvicorn app.main:app --reload 
 ```
+
+## 4. Use Cases 💡
+
+## 5. Project Structure 📁
+
+## 6. Disclaimer ⚠️
+* **비전문적 조언:**: <br/>
+  본 프로젝트와 연동된 LLM이 제공하는 자산 분석, 가계부 작성, 재무 관련 답변은 **__참고용__**일 뿐이며, 전문적인 재무 상담이나 투자 권유를 대체할 수 없습니다.
+
+
+* **AI 환각(Hallucination) 주의:**:<br/>
+  생성형 AI의 특성상 부정확하거나 지어낸 정보를 제공할 수 있습니다. 
+  실제 금전적인 의사결정이나 중요한 거래 전에는 반드시 실제 금융사의 공식 데이터를 직접 교차 검증하시기 바랍니다.
+
+
+* **면책 조항:**:<br/>
+  본 프로젝트를 사용하면서 발생하는 데이터 유출(환경 변수 유출, 사용자 기기 보안 취약점 등) 및 LLM의 답변으로 인한 직/간접적 손실에 대한 모든 책임은 사용자 본인에게 있으며, 프로젝트 개발자 및 기여자는 어떠한 법적 책임도 지지 않습니다. 
+  또한 소프트웨어를 사용하여 데이터를 수집하는 과정에서 **특정 금융사 또는 API 제공자의 이용약관(스크래핑 금지 조항, 과도한 트래픽 유발 등)을 위반하여 발생하는 계정 잠금, 서비스 이용 정지, 법적 분쟁** 등에 대해 프로젝트 개발자는 일절 책임을 지지 않습니다.
+
+## 7. License 📄
+This project is licensed under the [BSD 3-Clause License](LICENSE) - see the LICENSE file for details.
