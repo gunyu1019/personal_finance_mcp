@@ -54,7 +54,22 @@
 이 프로젝트는 개인 금융 자산(소비 기록과 자산 현황)을 MCP(Model Context Protocol)의 도구로 LLM 모델에게 제공하며, 맞춤형 소비 분석을 할 수 있도록 도움을 줍니다.
 
 ## 2. MCP Architecture 🏗️
+<ul>
+    <li><b>get_enabled_bank_accounts, get_enabled_card_accounts</b>: LLM Agent가 MCP를 통해 기능을 호출하면, Personal Finacne MCP는 
+Finance API(마이데이터) API에 호출하여 사용자와 연결된 계좌번호(또는 카드번호)를 확인합니다. 새롭게 조회되는 금융 정보가 있다면 암호화 과정을 거친 다음 데이터를 최소화하여 DB에 저장합니다.
 
+DB에 저장을 마치면 전처리를 진행한 다음에 LLM Agent에 제공합니다. 이때 제공되는 계좌 번호(또는 카드 번호)는 홈페이지(대시보드)에서 활성화된 계좌 번호(또는 카드 번호)만 전달되며 비활성화한 계좌번호(또는 카드번호)는 일체 제공되지 않습니다. 
+또한 계좌번호도 원문을 제공하는 것이 아닌 마스킹 처리를 거친 번호만 LLM Agent에게 전달됩니다. 
+<br/>
+        <img src=".github/mcp_architecture1.png" width="80%" />
+    </li>
+    <li><b>get_bank_transactions, get_card_transactions</b>: 마스킹된 계좌번호 또는 카드번호를 LLM Agent가 MCP를 통해 제공하면,
+Personal Finacne MCP는 DB에 저장된 마스킹 계좌번호와 대조하여, SHA-256 기반의 복호화가 가능한 계좌번호를 가져옵니다.
+이를 복호화하여 Finance API(마이데이터 API)에 제공하며, 거래 기록을 받고 MCP에 올바르게 전처리를 진행한 다음에 LLM Agent에 다시 제공합니다. 
+<br/>
+        <img src=".github/mcp_architecture2.png" width="80%" />
+    </li>
+</ul>
 ## 3. Getting Started 🚀
 **Requirements**
 * Python 3.14+
