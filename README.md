@@ -135,6 +135,38 @@ $ python -m uvicorn app.main:app --reload
 
 ## 5. Project Structure 📁
 
+```
+personal_finance_mcp/
+├── app/
+│   ├── api/                    # FastAPI 라우터 (REST API 엔드포인트)
+│   │   ├── auth.py             # 관리자 인증 (JWT)
+│   │   ├── finance.py          # 계좌/카드 동기화 API
+│   │   ├── crypto.py           # RSA 공개키 관리
+│   │   └── page.py             # 대시보드 페이지 렌더링
+│   ├── core/                   # 핵심 설정 및 유틸리티
+│   │   ├── config.py           # 환경 변수 관리 (Pydantic Settings)
+│   │   ├── database.py         # SQLAlchemy 비동기 세션
+│   │   ├── security.py         # RSA/AES-256 암호화 유틸리티
+│   │   └── import_supporter.py # api/model/mcp 동적 모듈 로딩
+│   ├── mcp/                    # MCP Tool 정의 (LLM에 노출되는 도구)
+│   │   ├── bank_tool.py        # 은행 계좌/거래내역 Tool
+│   │   └── card_tool.py        # 카드/승인내역 Tool
+│   ├── model/                  # SQLAlchemy ORM 모델
+│   ├── repository/             # 데이터 접근 계층 (Repository 패턴)
+│   ├── schema/                 # Pydantic 요청/응답 스키마
+│   ├── dto/                    # 계층 간 데이터 전송 객체
+│   ├── service/
+│   │   └── codef/              # CODEF API 클라이언트 (마이데이터 조회)
+│   │       ├── auth/           # 인증 API
+│   │       ├── bank/           # 은행 조회 API
+│   │       └── card/           # 카드 조회 API
+│   ├── template/               # Jinja2 HTML 템플릿 (대시보드 UI)
+│   └── main.py                 # 애플리케이션 진입점
+├── .env.example                # 환경 변수 예시
+├── mapping.ini                 # 금융사 코드 매핑 설정
+└── requirements.txt            # Python 의존성 목록
+```
+
 ## 6. Disclaimer ⚠️
 * **비전문적 조언:** <br/>
   본 프로젝트와 연동된 LLM이 제공하는 자산 분석, 가계부 작성, 재무 관련 답변은 **__참고용__**일 뿐이며, 전문적인 재무 상담이나 투자 권유를 대체할 수 없습니다.
