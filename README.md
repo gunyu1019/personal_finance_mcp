@@ -69,7 +69,8 @@ Personal Finacne MCP는 DB에 저장된 마스킹 계좌번호와 대조하여, 
 <br/>
         <img src=".github/mcp_architecture2.png" width="80%" />
     </li>
-</ul>
+</ul> 
+
 ## 3. Getting Started 🚀
 **Requirements**
 * Python 3.14+
